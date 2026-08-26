@@ -35,6 +35,16 @@ const orderSchema = new mongoose.Schema(
       enum: ['pending', 'paid', 'completed', 'failed', 'cancelled'],
       default: 'completed',
     },
+    experimentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Experiment',
+      default: null,
+    },
+    experimentGroup: {
+      type: String,
+      enum: ['control', 'treatment'],
+      default: null,
+    },
     razorpayOrderId: {
       type: String,
       trim: true,
@@ -54,5 +64,6 @@ const orderSchema = new mongoose.Schema(
 orderSchema.index({ customerId: 1 });
 orderSchema.index({ productIds: 1 });
 orderSchema.index({ source: 1, createdAt: -1 });
+orderSchema.index({ experimentId: 1, customerId: 1, source: 1 });
 
 module.exports = mongoose.model('Order', orderSchema);

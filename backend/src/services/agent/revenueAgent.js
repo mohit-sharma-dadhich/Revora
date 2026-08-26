@@ -1,22 +1,22 @@
-const OpenAI = require('openai');
+const { GoogleGenAI } = require('@google/genai');
 const { getRevenueOpportunity } = require('../opportunities/revenueOpportunity');
 
-const DEFAULT_OPENAI_MODEL = 'gpt-4o-mini';
+const DEFAULT_GEMINI_MODEL = 'gemini-2.0-flash';
 
-function getOpenAiClient() {
-  const apiKey = process.env.OPENAI_API_KEY;
+function getGeminiClient() {
+  const apiKey = process.env.GEMINI_API_KEY;
 
   if (!apiKey || !apiKey.trim()) {
-    throw new Error('OPENAI_API_KEY is missing');
+    throw new Error('GEMINI_API_KEY is missing');
   }
 
-  return new OpenAI({
+  return new GoogleGenAI({
     apiKey: apiKey.trim(),
   });
 }
 
 function getModelName() {
-  return process.env.OPENAI_MODEL || DEFAULT_OPENAI_MODEL;
+  return process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
 }
 
 function normalizeAgentEvidence(opportunity) {
@@ -162,16 +162,19 @@ async function runRevenueAgent() {
   }
 
   const evidence = normalizeAgentEvidence(opportunity);
-  const client = getOpenAiClient();
+  const client = getGeminiClient();
   const model = getModelName();
 
-  const completion = await client.responses.create({
+  const response = await client.models.generateContent({
     model,
-    system: buildSystemPrompt(),
-    input: buildUserPrompt(evidence),
+    contents: buildUserPrompt(evidence),
+    config: {
+      systemInstruction: buildSystemPrompt(),
+      responseMimeType: 'application/json',
+    },
   });
 
-  const responseText = completion.output_text || completion.output?.[0]?.content?.[0]?.text || '';
+  const responseText = response?.text || '';
 
   if (!responseText || typeof responseText !== 'string') {
     throw new Error('LLM returned no usable text output');
@@ -210,16 +213,19 @@ async function generateRecommendationFromOpportunity(opportunity) {
   }
 
   const evidence = normalizeAgentEvidence(opportunity);
-  const client = getOpenAiClient();
+  const client = getGeminiClient();
   const model = getModelName();
 
-  const completion = await client.responses.create({
+  const response = await client.models.generateContent({
     model,
-    system: buildSystemPrompt(),
-    input: buildUserPrompt(evidence),
+    contents: buildUserPrompt(evidence),
+    config: {
+      systemInstruction: buildSystemPrompt(),
+      responseMimeType: 'application/json',
+    },
   });
 
-  const responseText = completion.output_text || completion.output?.[0]?.content?.[0]?.text || '';
+  const responseText = response?.text || '';
 
   if (!responseText || typeof responseText !== 'string') {
     throw new Error('LLM returned no usable text output');
@@ -253,7 +259,7 @@ async function generateRecommendationFromOpportunity(opportunity) {
 }
 
 module.exports = {
-  DEFAULT_OPENAI_MODEL,
+  DEFAULT_GEMINI_MODEL,
   buildSystemPrompt,
   buildUserPrompt,
   generateRecommendationFromOpportunity,
