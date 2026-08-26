@@ -154,59 +154,6 @@ function ensureMachineMatchesApplication(response, evidence) {
   }
 }
 
-async function runRevenueAgent() {
-  const opportunity = await getRevenueOpportunity();
-
-  if (!opportunity) {
-    throw new Error('No valid revenue opportunity was found');
-  }
-
-  const evidence = normalizeAgentEvidence(opportunity);
-  const client = getGeminiClient();
-  const model = getModelName();
-
-  const response = await client.models.generateContent({
-    model,
-    contents: buildUserPrompt(evidence),
-    config: {
-      systemInstruction: buildSystemPrompt(),
-      responseMimeType: 'application/json',
-    },
-  });
-
-  const responseText = response?.text || '';
-
-  if (!responseText || typeof responseText !== 'string') {
-    throw new Error('LLM returned no usable text output');
-  }
-
-  let parsed;
-  try {
-    parsed = JSON.parse(responseText);
-  } catch (error) {
-    throw new Error(`LLM returned invalid JSON: ${error.message}`);
-  }
-
-  const validated = validateResponse(parsed);
-  ensureMachineMatchesApplication(validated, evidence);
-
-  return {
-    facts: {
-      baseProductId: evidence.baseProductId,
-      relatedProductId: evidence.relatedProductId,
-      baseCustomerCount: evidence.baseCustomerCount,
-      coPurchaseCustomerCount: evidence.coPurchaseCustomerCount,
-      affinity: evidence.affinity,
-      estimatedEligibleCustomers: evidence.estimatedEligibleCustomers,
-      opportunityScore: evidence.opportunityScore,
-    },
-    reasoning: validated.reasoning,
-    recommendation: validated.recommendation,
-    confidence: validated.confidence,
-    evidence: validated.evidence,
-  };
-}
-
 async function generateRecommendationFromOpportunity(opportunity) {
   if (!opportunity) {
     throw new Error('No valid revenue opportunity was found');
@@ -258,11 +205,23 @@ async function generateRecommendationFromOpportunity(opportunity) {
   };
 }
 
+async function runRevenueAgent() {
+  const opportunity = await getRevenueOpportunity();
+
+  if (!opportunity) {
+    throw new Error('No valid revenue opportunity was found');
+  }
+
+  return generateRecommendationFromOpportunity(opportunity);
+}
+
 module.exports = {
   DEFAULT_GEMINI_MODEL,
   buildSystemPrompt,
   buildUserPrompt,
+  ensureMachineMatchesApplication,
   generateRecommendationFromOpportunity,
+  getGeminiClient,
   getModelName,
   normalizeAgentEvidence,
   runRevenueAgent,

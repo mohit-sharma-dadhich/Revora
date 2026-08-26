@@ -170,6 +170,116 @@ function verifyRazorpaySignature({ razorpayOrderId, razorpayPaymentId, razorpayS
   }
 }
 
+function verifyWebhookSignature({ rawBody, signatureHeader }) {
+  const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
+
+  if (!webhookSecret || !webhookSecret.trim()) {
+    throw new Error('RAZORPAY_WEBHOOK_SECRET is missing.');
+  }
+
+  if (!signatureHeader || !signatureHeader.trim()) {
+    throw new Error('Invalid webhook signature.');
+  }
+
+  const bodyBuffer = Buffer.isBuffer(rawBody)
+    ? rawBody
+    : Buffer.from(String(rawBody || ''), 'utf8');
+
+  const digest = crypto
+    .createHmac('sha256', webhookSecret.trim())
+    .update(bodyBuffer)
+    .digest('hex');
+
+  if (digest !== signatureHeader.trim()) {
+    throw new Error('Invalid webhook signature.');
+  }
+}
+
+async function handlePaymentCapturedWebhook(payload) {
+  if (!payload || payload.event !== 'payment.captured') {
+    throw new Error('Unsupported webhook event.');
+  }
+
+  const paymentEntity = payload && payload.payload && payload.payload.payment && payload.payload.payment.entity;
+
+  if (!paymentEntity) {
+    throw new Error('Payment event payload is invalid.');
+  }
+
+  const razorpayOrderId = paymentEntity.order_id;
+  const razorpayPaymentId = paymentEntity.id;
+
+  if (!razorpayOrderId || !razorpayPaymentId) {
+    throw new Error('Payment order metadata is missing.');
+  }
+
+  const order = await Order.findOne({ razorpayOrderId }).lean();
+
+  if (!order) {
+    throw new Error('Payment order not found.');
+  }
+
+  if (order.status === 'paid' && order.razorpayPaymentId === razorpayPaymentId) {
+    return {
+      success: true,
+      data: {
+        orderId: order.razorpayOrderId,
+        paymentId: order.razorpayPaymentId,
+        status: order.status,
+        experimentId: order.experimentId ? order.experimentId.toString() : null,
+        customerId: order.customerId ? order.customerId.toString() : null,
+        group: order.experimentGroup || null,
+      },
+    };
+  }
+
+  const persistedOrder = await Order.findById(order._id);
+
+  if (persistedOrder.status === 'paid' && persistedOrder.razorpayPaymentId === razorpayPaymentId) {
+    return {
+      success: true,
+      data: {
+        orderId: persistedOrder.razorpayOrderId,
+        paymentId: persistedOrder.razorpayPaymentId,
+        status: persistedOrder.status,
+        experimentId: persistedOrder.experimentId ? persistedOrder.experimentId.toString() : null,
+        customerId: persistedOrder.customerId ? persistedOrder.customerId.toString() : null,
+        group: persistedOrder.experimentGroup || null,
+      },
+    };
+  }
+
+  persistedOrder.razorpayPaymentId = razorpayPaymentId;
+  persistedOrder.status = 'paid';
+  await persistedOrder.save();
+
+  await logPaymentAudit({
+    action: 'WEBHOOK_PAYMENT_CAPTURED',
+    status: 'SUCCESS',
+    reason: 'Razorpay payment.captured webhook verified and order marked paid.',
+    metadata: {
+      razorpayOrderId,
+      razorpayPaymentId,
+      experimentId: persistedOrder.experimentId ? persistedOrder.experimentId.toString() : null,
+      customerId: persistedOrder.customerId ? persistedOrder.customerId.toString() : null,
+      experimentGroup: persistedOrder.experimentGroup || null,
+      orderId: persistedOrder._id.toString(),
+    },
+  });
+
+  return {
+    success: true,
+    data: {
+      orderId: persistedOrder.razorpayOrderId,
+      paymentId: persistedOrder.razorpayPaymentId,
+      status: persistedOrder.status,
+      experimentId: persistedOrder.experimentId ? persistedOrder.experimentId.toString() : null,
+      customerId: persistedOrder.customerId ? persistedOrder.customerId.toString() : null,
+      group: persistedOrder.experimentGroup || null,
+    },
+  };
+}
+
 async function verifyExperimentPayment({ razorpay_order_id, razorpay_payment_id, razorpay_signature }) {
   if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
     throw new Error('Razorpay order ID, payment ID, and signature are required.');
@@ -267,5 +377,7 @@ async function verifyExperimentPayment({ razorpay_order_id, razorpay_payment_id,
 
 module.exports = {
   createExperimentOrder,
+  handlePaymentCapturedWebhook,
   verifyExperimentPayment,
+  verifyWebhookSignature,
 };
