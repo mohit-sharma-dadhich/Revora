@@ -1,22 +1,16 @@
-const { GoogleGenAI } = require('@google/genai');
 const { getRevenueOpportunity } = require('../opportunities/revenueOpportunity');
+const { routeProviderRequest } = require('../ai/providerRouter');
 
-const DEFAULT_GEMINI_MODEL = 'gemini-2.0-flash';
+const DEFAULT_GEMINI_MODEL = 'gemini-flash-latest';
 
 function getGeminiClient() {
-  const apiKey = process.env.GEMINI_API_KEY;
-
-  if (!apiKey || !apiKey.trim()) {
-    throw new Error('GEMINI_API_KEY is missing');
-  }
-
-  return new GoogleGenAI({
-    apiKey: apiKey.trim(),
-  });
+  const { getGeminiClient: getClient } = require('../ai/providers/geminiProvider');
+  return getClient();
 }
 
 function getModelName() {
-  return process.env.GEMINI_MODEL || DEFAULT_GEMINI_MODEL;
+  const { getModelName: getConfiguredModel } = require('../ai/providers/geminiProvider');
+  return getConfiguredModel();
 }
 
 function normalizeAgentEvidence(opportunity) {
@@ -60,6 +54,13 @@ function buildSystemPrompt() {
     'If the evidence is insufficient, say so clearly in the recommendation or reasoning.',
     'Your job is to interpret the evidence and suggest the next action in plain language.',
     'Never say that you created or measured a business result that was not supplied by the application.',
+    'Return exactly one JSON object with these required top-level fields: recommendation, reasoning, confidence, and evidence.',
+    'recommendation must be a non-empty string describing the next action.',
+    'reasoning must be a non-empty string explaining the recommendation using the supplied evidence.',
+    'confidence must be a number between 0 and 1.',
+    'evidence must contain baseProductId, relatedProductId, affinity, eligibleCustomers, and opportunityScore.',
+    'Copy the evidence values exactly; eligibleCustomers must equal facts.estimatedEligibleCustomers.',
+    'Do not wrap the JSON in markdown, omit required fields, or return fields with different names.',
   ].join(' ');
 }
 
@@ -80,6 +81,11 @@ function buildUserPrompt(evidence) {
       'Do not invent missing information.',
       'If evidence is insufficient, explain that clearly.',
       'Respond with valid JSON only.',
+      'The JSON must have exactly these required top-level fields: recommendation, reasoning, confidence, evidence.',
+      'recommendation and reasoning must be non-empty strings; confidence must be a number from 0 to 1.',
+      'evidence must contain baseProductId, relatedProductId, affinity, eligibleCustomers, and opportunityScore.',
+      'Set evidence.eligibleCustomers to facts.estimatedEligibleCustomers and copy all other evidence values exactly.',
+      'Do not use markdown or rename, omit, or invent any required field.',
       'Keep the recommendation limited to the current cross-sell opportunity and do not execute any experiment or payment.',
     ],
   }, null, 2);
@@ -160,19 +166,16 @@ async function generateRecommendationFromOpportunity(opportunity) {
   }
 
   const evidence = normalizeAgentEvidence(opportunity);
-  const client = getGeminiClient();
-  const model = getModelName();
+  const systemPrompt = buildSystemPrompt();
+  const userPrompt = buildUserPrompt(evidence);
 
-  const response = await client.models.generateContent({
-    model,
-    contents: buildUserPrompt(evidence),
-    config: {
-      systemInstruction: buildSystemPrompt(),
-      responseMimeType: 'application/json',
-    },
+  const providerResult = await routeProviderRequest({
+    evidence,
+    systemPrompt,
+    userPrompt,
   });
 
-  const responseText = response?.text || '';
+  const responseText = providerResult.output;
 
   if (!responseText || typeof responseText !== 'string') {
     throw new Error('LLM returned no usable text output');
