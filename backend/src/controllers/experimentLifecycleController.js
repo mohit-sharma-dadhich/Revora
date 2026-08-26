@@ -1,4 +1,8 @@
-const { getExperimentById, startExperiment: startExperimentService } = require('../services/experiments/experimentLifecycleService');
+const {
+  getExperimentById,
+  startExperiment: startExperimentService,
+  completeExperimentWithMeasurement,
+} = require('../services/experiments/experimentLifecycleService');
 
 async function getExperiment(req, res) {
   try {
@@ -34,7 +38,26 @@ async function startExperiment(req, res) {
   }
 }
 
+async function completeExperiment(req, res) {
+  try {
+    const experiment = await completeExperimentWithMeasurement(req.params.id, req.body || {});
+
+    return res.status(200).json({
+      success: true,
+      data: experiment,
+    });
+  } catch (error) {
+    const statusCode = error.message === 'Experiment not found.' ? 404 : 400;
+
+    return res.status(statusCode).json({
+      success: false,
+      error: error.message,
+    });
+  }
+}
+
 module.exports = {
+  completeExperiment,
   getExperiment,
   startExperiment,
 };

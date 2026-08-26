@@ -1,5 +1,7 @@
 const Experiment = require('../../models/Experiment');
 const AuditLog = require('../../models/AuditLog');
+const { measureExperiment } = require('../measurement/measurementService');
+const { decideOutcome } = require('./decisionService');
 
 const PRE_RUNNING_STATUSES = new Set(['draft', 'pending']);
 
@@ -185,9 +187,51 @@ async function completeExperiment(experimentId) {
   return normalizeExperiment(experiment.toObject());
 }
 
+async function completeExperimentWithMeasurement(experimentId, options = {}) {
+  if (!experimentId) {
+    throw new Error('Experiment identifier is required.');
+  }
+
+  const completedExperiment = await completeExperiment(experimentId);
+  const measurement = await measureExperiment(experimentId);
+  const outcome = decideOutcome({
+    ...measurement,
+    ...options,
+  });
+
+  const experiment = await Experiment.findById(experimentId);
+
+  if (!experiment) {
+    throw new Error('Experiment not found.');
+  }
+
+  experiment.results = {
+    ...(experiment.results || {}),
+    measurement,
+    decisionChecks: outcome.checks,
+  };
+  experiment.decision = outcome.decision;
+
+  await experiment.save();
+
+  await logLifecycleEvent({
+    action: 'EXPERIMENT_DECISION_RECORDED',
+    status: 'SUCCESS',
+    reason: 'Experiment measurement and decision recorded.',
+    experimentId: experiment._id.toString(),
+    metadata: {
+      decision: outcome.decision,
+      incrementalRevenue: measurement.incremental.incrementalRevenuePerEligibleCustomer,
+    },
+  });
+
+  return normalizeExperiment(experiment.toObject());
+}
+
 module.exports = {
   PRE_RUNNING_STATUSES,
   completeExperiment,
+  completeExperimentWithMeasurement,
   getExperimentById,
   logLifecycleEvent,
   normalizeExperiment,
