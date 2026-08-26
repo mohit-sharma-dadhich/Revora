@@ -1,0 +1,51 @@
+import { motion } from 'framer-motion'
+import { BarChart3, Check, ChevronDown, FileCheck2, RotateCcw, Scale, X } from 'lucide-react'
+import { useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Badge } from '../components/ui/badge'
+import { Button } from '../components/ui/button'
+import { Card, CardContent, CardHeader } from '../components/ui/card'
+import { useExperiment } from '../lib/apiHooks'
+import { formatMoney } from '../lib/format'
+import type { Experiment, ExperimentMeasurement, MeasurementGroup } from '../lib/types'
+
+type ResultsRouteState = { experimentId?: string; experiment?: Experiment }
+
+function ResultEmptyState() {
+  const navigate = useNavigate()
+  return <Card className="border-dashed"><CardContent className="flex min-h-80 flex-col items-center justify-center text-center"><div className="grid size-12 place-items-center rounded-xl border border-line bg-white/[0.04] text-muted"><BarChart3 size={21} /></div><h1 className="mt-5 text-2xl font-semibold text-white">No results to show</h1><p className="mt-3 max-w-md text-sm leading-6 text-muted">Complete an experiment from Opportunity to see its measured verdict here.</p><Button variant="outline" className="mt-6" onClick={() => navigate('/opportunity')}><RotateCcw size={16} />Back to Opportunity</Button></CardContent></Card>
+}
+
+export function ResultsPage() {
+  const { state } = useLocation()
+  const routeState = (state || {}) as ResultsRouteState
+  const experimentId = routeState.experimentId
+  const experimentQuery = useExperiment(experimentId)
+  const experiment = routeState.experiment || experimentQuery.data
+  const [rawOpen, setRawOpen] = useState(false)
+
+  if (experimentId && experimentQuery.isLoading && !experiment) return <Card><CardContent className="min-h-72 space-y-4 p-6"><div className="h-5 w-32 animate-pulse rounded bg-white/[0.07]" /><div className="h-10 w-56 animate-pulse rounded bg-white/[0.07]" /><div className="h-4 w-96 max-w-full animate-pulse rounded bg-white/[0.07]" /></CardContent></Card>
+  if (!experiment) return <ResultEmptyState />
+  if (experimentQuery.isError && !routeState.experiment) return <Card className="border-red-500/20"><CardContent className="p-6"><p className="text-sm text-red-300">Unable to load experiment results</p><p className="mt-2 text-sm text-muted">{experimentQuery.error.message}</p></CardContent></Card>
+
+  const measurement = experiment.results.measurement
+  if (!measurement) return <Card className="border-dashed"><CardContent className="flex min-h-72 flex-col items-center justify-center text-center"><FileCheck2 className="text-muted" size={24} /><h1 className="mt-5 text-2xl font-semibold text-white">Measurement not available</h1><p className="mt-3 text-sm text-muted">This experiment has not produced a completed measurement yet.</p></CardContent></Card>
+
+  return <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }} className="max-w-6xl space-y-5">
+    <VerdictBanner decision={experiment.decision} measurement={measurement} />
+    <div className="grid gap-5 xl:grid-cols-[1.35fr_0.65fr]">
+      <Card><CardHeader><div className="flex items-center gap-3"><BarChart3 size={17} className="text-emerald" /><div><p className="text-sm font-medium text-white">Control vs Treatment</p><p className="mt-1 text-xs text-muted">A direct view of the measured experiment outcomes.</p></div></div></CardHeader><CardContent><div className="h-[280px] w-full"><ResponsiveContainer width="100%" height="100%"><BarChart data={chartData(measurement)} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}><CartesianGrid stroke="rgba(255,255,255,0.07)" vertical={false} /><XAxis dataKey="metric" axisLine={false} tickLine={false} tick={{ fill: '#8b929e', fontSize: 11 }} /><YAxis axisLine={false} tickLine={false} tick={{ fill: '#8b929e', fontSize: 11 }} /><Tooltip contentStyle={{ background: '#151719', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, color: '#e7e9ec' }} /><Legend wrapperStyle={{ color: '#a4aab3', fontSize: 11 }} /><Bar dataKey="control" name="Control" fill="#69727f" radius={[4, 4, 0, 0]} /><Bar dataKey="treatment" name="Treatment" fill="#10b981" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer></div><p className="mt-3 text-[11px] leading-5 text-muted">Conversion rate is shown as a percentage. Monetary metrics are displayed in rupees.</p></CardContent></Card>
+      <Card className="bg-emerald/[0.045]"><CardHeader><div className="flex items-center gap-3"><Scale size={17} className="text-emerald" /><p className="text-sm font-medium text-white">Incremental impact</p></div></CardHeader><CardContent className="space-y-6"><ImpactMetric label="Incremental revenue / eligible customer" value={formatMoney(measurement.incremental.incrementalRevenuePerEligibleCustomer)} /><ImpactMetric label="Revenue uplift" value={measurement.incremental.revenueUpliftPercent === null ? 'Not available' : `${measurement.incremental.revenueUpliftPercent.toFixed(1)}%`} /></CardContent></Card>
+    </div>
+    <Card><CardHeader><div className="flex items-center gap-3"><FileCheck2 size={17} className="text-emerald" /><div><p className="text-sm font-medium text-white">Decision Checks</p><p className="mt-1 text-xs text-muted">The rules behind the final verdict.</p></div></div></CardHeader><CardContent className="space-y-3">{(experiment.results.decisionChecks || []).map((check, index) => <motion.div key={check.name} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.25, delay: index * 0.1 }} className="flex items-start gap-3 rounded-lg border border-line bg-white/[0.018] p-4"><div className={check.passed ? 'mt-0.5 text-emerald' : 'mt-0.5 text-red-300'}>{check.passed ? <Check size={16} /> : <X size={16} />}</div><div><p className="text-sm font-medium text-slate-200">{titleCase(check.name)}</p><p className="mt-1 text-xs leading-5 text-muted">{check.reason}</p></div><span className={check.passed ? 'ml-auto text-[10px] uppercase tracking-[0.12em] text-emerald' : 'ml-auto text-[10px] uppercase tracking-[0.12em] text-red-300'}>{check.passed ? 'Passed' : 'Failed'}</span></motion.div>)}</CardContent></Card>
+    <Card><button type="button" onClick={() => setRawOpen((open) => !open)} className="flex w-full items-center justify-between px-5 py-4 text-left"><span><span className="block text-sm font-medium text-white">View Raw Measurement Data</span><span className="mt-1 block text-xs text-muted">Inspect the exact control and treatment metrics.</span></span><ChevronDown size={17} className={`text-muted transition-transform ${rawOpen ? 'rotate-180' : ''}`} /></button>{rawOpen && <CardContent className="border-t border-line"><div className="grid gap-5 md:grid-cols-2"><MetricTable title="Control" metrics={measurement.control} /><MetricTable title="Treatment" metrics={measurement.treatment} /></div></CardContent>}</Card>
+  </motion.div>
+}
+
+function VerdictBanner({ decision, measurement }: { decision: string; measurement: ExperimentMeasurement }) { const scale = decision === 'SCALE'; return <motion.section initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.45 }} className={scale ? 'overflow-hidden rounded-xl border border-emerald/25 bg-emerald/[0.08] p-6 sm:p-8' : 'overflow-hidden rounded-xl border border-amber-500/25 bg-amber-500/[0.07] p-6 sm:p-8'}><div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between"><div><div className={scale ? 'mb-4 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-emerald' : 'mb-4 flex items-center gap-2 text-xs font-medium uppercase tracking-[0.16em] text-amber-300'}><span className={scale ? 'size-2 rounded-full bg-emerald' : 'size-2 rounded-full bg-amber-300'} />Experiment verdict</div><h1 className={scale ? 'text-6xl font-bold tracking-[-0.07em] text-emerald sm:text-7xl' : 'text-6xl font-bold tracking-[-0.07em] text-amber-300 sm:text-7xl'}>{scale ? 'SCALE' : 'STOP'}</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-slate-200">{scale ? `Treatment generated ${formatMoney(measurement.incremental.incrementalRevenuePerEligibleCustomer)} more per eligible customer than control.` : 'The measured treatment did not clear every decision threshold, so keep the experiment stopped.'}</p></div><Badge className={scale ? 'w-fit border-emerald/25 bg-emerald/10 text-emerald' : 'w-fit border-amber-500/25 bg-amber-500/10 text-amber-300'}>{decision}</Badge></div></motion.section> }
+
+function ImpactMetric({ label, value }: { label: string; value: string }) { return <div><p className="text-xs leading-5 text-muted">{label}</p><p className="mt-2 text-3xl font-semibold tracking-[-0.04em] text-white">{value}</p></div> }
+function MetricTable({ title, metrics }: { title: string; metrics: MeasurementGroup }) { return <div><p className="mb-3 text-xs font-medium uppercase tracking-[0.13em] text-muted">{title}</p><div className="overflow-hidden rounded-lg border border-line">{Object.entries(metrics).map(([key, value]) => <div key={key} className="flex items-center justify-between gap-4 border-b border-line px-3 py-2.5 text-xs last:border-b-0"><span className="text-muted">{titleCase(key)}</span><span className="font-mono text-slate-200">{key.toLowerCase().includes('revenue') || key.toLowerCase().includes('ordervalue') ? formatMoney(value) : value}</span></div>)}</div></div> }
+function chartData(measurement: ExperimentMeasurement) { return [{ metric: 'Conversion rate', control: measurement.control.conversionRate * 100, treatment: measurement.treatment.conversionRate * 100 }, { metric: 'Average order value', control: measurement.control.averageOrderValue / 100, treatment: measurement.treatment.averageOrderValue / 100 }, { metric: 'Total revenue', control: measurement.control.totalRevenue / 100, treatment: measurement.treatment.totalRevenue / 100 }] }
+function titleCase(value: string) { return value.split('_').map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ') }
