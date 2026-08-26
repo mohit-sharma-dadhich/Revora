@@ -204,10 +204,59 @@ async function runRevenueAgent() {
   };
 }
 
+async function generateRecommendationFromOpportunity(opportunity) {
+  if (!opportunity) {
+    throw new Error('No valid revenue opportunity was found');
+  }
+
+  const evidence = normalizeAgentEvidence(opportunity);
+  const client = getOpenAiClient();
+  const model = getModelName();
+
+  const completion = await client.responses.create({
+    model,
+    system: buildSystemPrompt(),
+    input: buildUserPrompt(evidence),
+  });
+
+  const responseText = completion.output_text || completion.output?.[0]?.content?.[0]?.text || '';
+
+  if (!responseText || typeof responseText !== 'string') {
+    throw new Error('LLM returned no usable text output');
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(responseText);
+  } catch (error) {
+    throw new Error(`LLM returned invalid JSON: ${error.message}`);
+  }
+
+  const validated = validateResponse(parsed);
+  ensureMachineMatchesApplication(validated, evidence);
+
+  return {
+    facts: {
+      baseProductId: evidence.baseProductId,
+      relatedProductId: evidence.relatedProductId,
+      baseCustomerCount: evidence.baseCustomerCount,
+      coPurchaseCustomerCount: evidence.coPurchaseCustomerCount,
+      affinity: evidence.affinity,
+      estimatedEligibleCustomers: evidence.estimatedEligibleCustomers,
+      opportunityScore: evidence.opportunityScore,
+    },
+    reasoning: validated.reasoning,
+    recommendation: validated.recommendation,
+    confidence: validated.confidence,
+    evidence: validated.evidence,
+  };
+}
+
 module.exports = {
   DEFAULT_OPENAI_MODEL,
   buildSystemPrompt,
   buildUserPrompt,
+  generateRecommendationFromOpportunity,
   getModelName,
   normalizeAgentEvidence,
   runRevenueAgent,
