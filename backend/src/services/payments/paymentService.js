@@ -83,7 +83,7 @@ async function validateExperimentCustomerAndProduct({ experimentId, customerId }
 }
 
 async function createExperimentOrder({ experimentId, customerId }) {
-  const { experiment, experimentGroup, targetProductId, product } = await validateExperimentCustomerAndProduct({
+  const { experiment, customer, experimentGroup, targetProductId, product } = await validateExperimentCustomerAndProduct({
     experimentId,
     customerId,
   });
