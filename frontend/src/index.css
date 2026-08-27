@@ -69,3 +69,22 @@ html::-webkit-scrollbar-thumb:hover {
 .revora-customer-scroll::-webkit-scrollbar-thumb:hover {
   background: rgba(16, 185, 129, 0.8);
 }
+
+.ai-generated-badge {
+  display: none;
+}
+
+.revora-message {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 639px) {
+  .revora-mobile-pipeline {
+    max-width: 100%;
+  }
+
+  .revora-mobile-pipeline text {
+    font-size: 10px;
+  }
+}
