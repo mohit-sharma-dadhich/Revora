@@ -245,7 +245,15 @@ async function proposeExperiment({ opportunity, minEligibleAudience = DEFAULT_MI
       opportunity,
       proposal: null,
       guardrails,
-      experiment: null,
+      experiment: activeExperimentExists
+        ? {
+            id: activeExperimentExists._id.toString(),
+            strategy: activeExperimentExists.strategy,
+            targetProductId: activeExperimentExists.targetProductId.toString(),
+            status: activeExperimentExists.status,
+            decision: activeExperimentExists.decision,
+          }
+        : null,
     };
   }
 

@@ -111,6 +111,7 @@ export interface DecisionCheck {
 export interface ExperimentResults {
   measurement?: ExperimentMeasurement
   decisionChecks?: DecisionCheck[]
+  guardrails?: Guardrails
   [key: string]: unknown
 }
 

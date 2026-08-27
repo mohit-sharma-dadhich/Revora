@@ -1,13 +1,13 @@
 import { motion } from 'framer-motion'
 import { ArrowLeft, Check, CircleDollarSign, FlaskConical, Play, ShieldCheck, X } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { toast, Toaster } from 'sonner'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardHeader } from '../components/ui/card'
-import { useCompleteExperiment, useCreatePaymentOrder, useStartExperiment, useVerifyPayment } from '../lib/apiHooks'
-import type { ExperimentProposal, ExperimentSummary, Guardrails } from '../lib/types'
+import { useCompleteExperiment, useCreatePaymentOrder, useExperiment, useStartExperiment, useVerifyPayment } from '../lib/apiHooks'
+import type { Experiment, ExperimentProposal, ExperimentSummary, Guardrails } from '../lib/types'
 
 declare global {
   interface Window {
@@ -36,6 +36,11 @@ type RazorpayInstance = { open: () => void }
 type ExperimentRouteState = { experimentId?: string; guardrails?: Guardrails; proposal?: ExperimentProposal | null; experiment?: ExperimentSummary | null }
 type CustomerGroup = 'control' | 'treatment'
 
+function getStoredGuardrails(experiment: Experiment | ExperimentSummary | null | undefined): Guardrails | undefined {
+  if (!experiment || !('results' in experiment) || !experiment.results.guardrails) return undefined
+  return experiment.results.guardrails
+}
+
 function titleCase(value: string) { return value.split('_').map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ') }
 
 function loadRazorpayScript() {
@@ -58,23 +63,37 @@ function loadRazorpayScript() {
 
 export function ExperimentPage() {
   const navigate = useNavigate()
+  const { id } = useParams()
   const { state } = useLocation()
   const routeState = (state || {}) as ExperimentRouteState
+  const storedExperimentId = typeof window === 'undefined' ? undefined : sessionStorage.getItem('revora.experimentId') || undefined
+  const experimentId = id || routeState.experimentId || storedExperimentId
+  const experimentQuery = useExperiment(experimentId)
   const start = useStartExperiment()
   const createOrder = useCreatePaymentOrder()
   const verify = useVerifyPayment()
   const complete = useCompleteExperiment()
   const [paidCustomers, setPaidCustomers] = useState<Record<string, boolean>>({})
   const [activeCustomer, setActiveCustomer] = useState<string | null>(null)
-  const guardrails = routeState.guardrails
+  const experiment = experimentQuery.data || routeState.experiment
+  const guardrails = routeState.guardrails || getStoredGuardrails(experiment)
   const proposal = routeState.proposal
-  const experiment = routeState.experiment
 
-  if (!routeState.experimentId) return <Card className="border-dashed"><CardContent className="flex min-h-72 flex-col items-center justify-center text-center"><div className="grid size-12 place-items-center rounded-xl border border-line bg-white/[0.04] text-muted"><FlaskConical size={21} /></div><h1 className="mt-5 text-2xl font-semibold text-white">No active experiment</h1><p className="mt-3 max-w-md text-sm leading-6 text-muted">Start from Opportunity to turn a verified revenue signal into an experiment.</p><Button variant="outline" className="mt-6" onClick={() => navigate('/opportunity')}><ArrowLeft size={16} />Back to Opportunity</Button></CardContent></Card>
+  useEffect(() => {
+    if (experimentId) sessionStorage.setItem('revora.experimentId', experimentId)
+  }, [experimentId])
+
+  if (!experimentId) return <Card className="border-dashed"><CardContent className="flex min-h-72 flex-col items-center justify-center text-center"><div className="grid size-12 place-items-center rounded-xl border border-line bg-white/[0.04] text-muted"><FlaskConical size={21} /></div><h1 className="mt-5 text-2xl font-semibold text-white">No active experiment</h1><p className="mt-3 max-w-md text-sm leading-6 text-muted">Start from Opportunity to turn a verified revenue signal into an experiment.</p><Button variant="outline" className="mt-6" onClick={() => navigate('/opportunity')}><ArrowLeft size={16} />Back to Opportunity</Button></CardContent></Card>
+
+  if (experimentQuery.isLoading && !experiment) return <Card><CardContent className="flex min-h-72 items-center justify-center p-6 text-sm text-muted">Loading experiment...</CardContent></Card>
+  if (experimentQuery.isError && !experiment) {
+    const notFound = (experimentQuery.error as { status?: number }).status === 404
+    return <Card className="border-red-500/20"><CardContent className="flex min-h-72 flex-col items-center justify-center text-center"><h1 className="text-2xl font-semibold text-white">{notFound ? 'Experiment does not exist' : 'Experiment could not be loaded.'}</h1><p className="mt-3 max-w-md text-sm leading-6 text-muted">{experimentQuery.error.message}</p><Button variant="outline" className="mt-6" onClick={() => navigate('/opportunity')}><ArrowLeft size={16} />Back to Opportunity</Button></CardContent></Card>
+  }
 
   const blocked = guardrails && !guardrails.passed
   const status = start.data?.status || experiment?.status || 'pending'
-  const audience = start.data || null
+  const audience = start.data || experimentQuery.data || null
   const controlCustomers = audience?.controlCustomerIds || proposal?.controlCustomerIds || []
   const treatmentCustomers = audience?.treatmentCustomerIds || proposal?.treatmentCustomerIds || []
   const controlSize = controlCustomers.length
@@ -84,12 +103,12 @@ export function ExperimentPage() {
   const hasTreatmentPayment = treatmentCustomers.some((id) => paidCustomers[`treatment:${id}`])
   const canComplete = status === 'running' && hasControlPayment && hasTreatmentPayment
 
-  const startExperiment = () => start.mutate(routeState.experimentId as string)
+  const startExperiment = () => start.mutate(experimentId)
   const simulatePayment = async (customerId: string, group: CustomerGroup) => {
     const paymentKey = `${group}:${customerId}`
     setActiveCustomer(paymentKey)
     try {
-      const order = await createOrder.mutateAsync({ experimentId: routeState.experimentId as string, customerId })
+      const order = await createOrder.mutateAsync({ experimentId, customerId })
       await loadRazorpayScript()
       if (!window.Razorpay) throw new Error('Razorpay Checkout is unavailable.')
       const checkout = new window.Razorpay({
@@ -118,7 +137,7 @@ export function ExperimentPage() {
       toast.error(error instanceof Error ? error.message : 'Unable to create payment order')
     }
   }
-  const completeExperiment = () => complete.mutate(routeState.experimentId as string, { onSuccess: (result) => navigate('/results', { state: { experiment: result } }) })
+  const completeExperiment = () => complete.mutate(experimentId, { onSuccess: (result) => navigate('/results', { state: { experiment: result } }) })
 
   return <><Toaster theme="dark" position="bottom-right" /><motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }} className="max-w-5xl space-y-6"><div><div className="mb-4 flex items-center gap-3 text-xs font-medium uppercase tracking-[0.16em] text-emerald"><FlaskConical size={15} />Experiment design</div><div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><h1 className="text-3xl font-semibold tracking-[-0.045em] text-white sm:text-4xl">Verify the experiment.</h1><p className="mt-3 max-w-xl text-sm leading-6 text-muted">A guarded proposal for the opportunity you just discovered.</p></div><StatusBadge status={status} /></div></div>
     {guardrails && <Card><CardHeader><div className="flex items-center gap-3"><ShieldCheck size={17} className="text-emerald" /><div><p className="text-sm font-medium text-white">Guardrail verification</p><p className="mt-1 text-xs text-muted">Every check must pass before exposure begins.</p></div></div></CardHeader><CardContent className="space-y-3">{guardrails.checks.map((check, index) => <motion.div key={check.name} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.25, delay: index * 0.1 }} className="flex items-start gap-3 rounded-lg border border-line bg-white/[0.018] p-4"><div className={check.passed ? 'mt-0.5 text-emerald' : 'mt-0.5 text-red-300'}>{check.passed ? <Check size={16} /> : <X size={16} />}</div><div><p className="text-sm font-medium text-slate-200">{titleCase(check.name)}</p><p className="mt-1 text-xs leading-5 text-muted">{check.reason}</p></div><span className={check.passed ? 'ml-auto text-[10px] uppercase tracking-[0.12em] text-emerald' : 'ml-auto text-[10px] uppercase tracking-[0.12em] text-red-300'}>{check.passed ? 'Passed' : 'Blocked'}</span></motion.div>)}</CardContent></Card>}
