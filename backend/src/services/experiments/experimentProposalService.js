@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const mongoose = require('mongoose');
 
 const Experiment = require('../../models/Experiment');
@@ -11,6 +12,30 @@ const DEFAULT_MIN_ELIGIBLE_AUDIENCE = 20;
 const DEFAULT_MAX_EXPOSURE_PERCENT = 0.2;
 const DEFAULT_TREATMENT_PERCENT = 0.5;
 const DEFAULT_STRATEGY = 'CROSS_SELL';
+const DEFAULT_ASSIGNMENT_SEED = 42;
+const ASSIGNMENT_METHOD = 'seeded_fisher_yates';
+
+function createSeededRandom(seed) {
+  let state = Number(seed) >>> 0;
+
+  return function random() {
+    state = (state + 0x6d2b79f5) >>> 0;
+    let value = state;
+    value = Math.imul(value ^ (value >>> 15), value | 1);
+    value ^= value + Math.imul(value ^ (value >>> 7), value | 61);
+    return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+async function generateUniqueAssignmentSeed() {
+  let assignmentSeed;
+
+  do {
+    assignmentSeed = crypto.randomBytes(4).readUInt32BE(0);
+  } while (await Experiment.exists({ 'results.assignmentSeed': assignmentSeed }));
+
+  return assignmentSeed;
+}
 
 function normalizeOptions(options = {}) {
   const minEligibleAudience = Number.isInteger(options.minEligibleAudience)
@@ -175,21 +200,27 @@ function evaluateGuardrails({
   };
 }
 
-function assignAudienceDeterministically(audienceCustomerIds, treatmentPercent) {
-  const sortedAudience = [...audienceCustomerIds].sort((left, right) => left.localeCompare(right));
+function assignAudienceDeterministically(audienceCustomerIds, treatmentPercent, seed = DEFAULT_ASSIGNMENT_SEED) {
+  const shuffledAudience = [...audienceCustomerIds];
+  const random = createSeededRandom(seed);
 
-  if (sortedAudience.length < 2) {
+  for (let index = shuffledAudience.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(random() * (index + 1));
+    [shuffledAudience[index], shuffledAudience[swapIndex]] = [shuffledAudience[swapIndex], shuffledAudience[index]];
+  }
+
+  if (shuffledAudience.length < 2) {
     return {
-      controlCustomerIds: sortedAudience,
+      controlCustomerIds: shuffledAudience,
       treatmentCustomerIds: [],
     };
   }
 
-  const treatmentCount = Math.max(1, Math.round(sortedAudience.length * treatmentPercent));
-  const controlCount = sortedAudience.length - treatmentCount;
+  const treatmentCount = Math.max(1, Math.round(shuffledAudience.length * treatmentPercent));
+  const controlCount = shuffledAudience.length - treatmentCount;
 
-  const treatmentCustomerIds = sortedAudience.slice(sortedAudience.length - treatmentCount);
-  const controlCustomerIds = sortedAudience.slice(0, controlCount);
+  const controlCustomerIds = shuffledAudience.slice(0, controlCount);
+  const treatmentCustomerIds = shuffledAudience.slice(controlCount);
 
   return {
     controlCustomerIds,
@@ -268,7 +299,8 @@ async function proposeExperiment({ opportunity, minEligibleAudience = DEFAULT_MI
   const maxAudienceSize = Math.floor(eligibleCustomerIds.length * maxExposurePercent);
   const finalAudienceSize = Math.max(2, Math.min(maxAudienceSize, eligibleCustomerIds.length));
   const selectedAudienceIds = eligibleCustomerIds.slice(0, finalAudienceSize);
-  const assignedAudience = assignAudienceDeterministically(selectedAudienceIds, treatmentPercent);
+  const assignmentSeed = await generateUniqueAssignmentSeed();
+  const assignedAudience = assignAudienceDeterministically(selectedAudienceIds, treatmentPercent, assignmentSeed);
 
   const proposal = {
     strategy,
@@ -299,6 +331,10 @@ async function proposeExperiment({ opportunity, minEligibleAudience = DEFAULT_MI
       proposedAudienceSize: selectedAudienceIds.length,
       maximumAudienceSize: maxAudienceSize,
       treatmentPercentage: treatmentPercent,
+      assignmentMethod: ASSIGNMENT_METHOD,
+      assignmentSeed,
+      controlAudienceSize: assignedAudience.controlCustomerIds.length,
+      treatmentAudienceSize: assignedAudience.treatmentCustomerIds.length,
       guardrails,
       createdFromOpportunity: true,
     },
