@@ -8,6 +8,11 @@ const experimentSchema = new mongoose.Schema(
       enum: ['CROSS_SELL'],
       default: 'CROSS_SELL',
     },
+    baseProductId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Product',
+      required: true,
+    },
     targetProductId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Product',
@@ -45,7 +50,7 @@ const experimentSchema = new mongoose.Schema(
     },
     decision: {
       type: String,
-      enum: ['PENDING', 'SCALE', 'STOP'],
+      enum: ['PENDING', 'SCALE', 'STOP', 'INSUFFICIENT_DATA'],
       default: 'PENDING',
     },
   },

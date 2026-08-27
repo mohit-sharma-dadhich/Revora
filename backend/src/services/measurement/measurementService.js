@@ -43,6 +43,8 @@ async function getGroupMetrics({ experimentId, group, customerIds = [] }) {
 }
 
 function calculateIncrementalRevenue({ controlMetrics, treatmentMetrics }) {
+  // Control revenue is the base-product baseline, so shared base revenue is
+  // excluded from the treatment lift calculation.
   const controlRevenuePerCustomer = controlMetrics && controlMetrics.audienceSize > 0
     ? roundValue(controlMetrics.totalRevenue / controlMetrics.audienceSize)
     : 0;

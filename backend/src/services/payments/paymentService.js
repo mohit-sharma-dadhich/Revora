@@ -61,15 +61,27 @@ async function validateExperimentCustomerAndProduct({ experimentId, customerId }
   }
 
   const experimentGroup = belongsToControl ? 'control' : 'treatment';
+  const baseProductId = (experiment.baseProductId || experiment.results?.baseProductId)?.toString() || null;
   const targetProductId = experiment.targetProductId ? experiment.targetProductId.toString() : null;
+
+  if (!baseProductId) {
+    throw new Error('Experiment base product is missing.');
+  }
 
   if (!targetProductId) {
     throw new Error('Experiment target product is missing.');
   }
 
-  const product = await Product.findById(targetProductId).lean();
+  const [baseProduct, targetProduct] = await Promise.all([
+    Product.findById(baseProductId).lean(),
+    Product.findById(targetProductId).lean(),
+  ]);
 
-  if (!product) {
+  if (!baseProduct) {
+    throw new Error('Experiment base product could not be found.');
+  }
+
+  if (!targetProduct) {
     throw new Error('Experiment target product could not be found.');
   }
 
@@ -77,13 +89,15 @@ async function validateExperimentCustomerAndProduct({ experimentId, customerId }
     experiment,
     customer,
     experimentGroup,
+    baseProductId,
     targetProductId,
-    product,
+    baseProduct,
+    targetProduct,
   };
 }
 
 async function createExperimentOrder({ experimentId, customerId }) {
-  const { experiment, customer, experimentGroup, targetProductId, product } = await validateExperimentCustomerAndProduct({
+  const { experiment, customer, experimentGroup, baseProductId, targetProductId, baseProduct, targetProduct } = await validateExperimentCustomerAndProduct({
     experimentId,
     customerId,
   });
@@ -99,10 +113,17 @@ async function createExperimentOrder({ experimentId, customerId }) {
     throw new Error('An experiment payment order already exists for this customer and experiment.');
   }
 
+  const productIds = experimentGroup === 'control'
+    ? [baseProductId]
+    : [baseProductId, targetProductId];
+  const amount = experimentGroup === 'control'
+    ? baseProduct.price
+    : baseProduct.price + targetProduct.price;
+
   const orderDocument = await Order.create({
     customerId,
-    productIds: [targetProductId],
-    amount: product.price,
+    productIds,
+    amount,
     source: 'experiment',
     status: 'pending',
     experimentId,
@@ -113,13 +134,14 @@ async function createExperimentOrder({ experimentId, customerId }) {
   const receipt = `revora_exp_${orderDocument._id.toString()}`;
 
   const razorpayOrder = await razorpayService.createTestOrder({
-    amount: product.price,
+    amount,
     currency: 'INR',
     receipt,
     notes: {
       experimentId: experiment._id.toString(),
       customerId: customer._id.toString(),
       experimentGroup,
+      baseProductId,
       targetProductId,
     },
   });
@@ -135,16 +157,17 @@ async function createExperimentOrder({ experimentId, customerId }) {
       experimentId,
       customerId,
       experimentGroup,
+      baseProductId,
       targetProductId,
       orderId: orderDocument._id.toString(),
       razorpayOrderId: razorpayOrder.id,
-      amount: product.price,
+      amount,
     },
   });
 
   return {
     orderId: razorpayOrder.id,
-    amount: product.price,
+    amount,
     currency: 'INR',
     keyId: process.env.RAZORPAY_KEY_ID,
     experimentId,

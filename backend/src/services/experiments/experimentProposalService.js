@@ -278,6 +278,7 @@ async function proposeExperiment({ opportunity, minEligibleAudience = DEFAULT_MI
 
   const experiment = await Experiment.create({
     strategy,
+    baseProductId: opportunity.baseProductId,
     targetProductId: opportunity.relatedProductId,
     status: 'pending',
     controlCustomerIds: assignedAudience.controlCustomerIds.map((id) => new mongoose.Types.ObjectId(id)),
