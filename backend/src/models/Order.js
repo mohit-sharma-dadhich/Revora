@@ -55,6 +55,25 @@ const orderSchema = new mongoose.Schema(
       trim: true,
       default: null,
     },
+    razorpayFailureCode: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+    razorpayFailureDescription: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+    razorpayPaymentMethod: {
+      type: String,
+      trim: true,
+      default: null,
+    },
+    razorpayPaymentCreatedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     timestamps: true,
