@@ -64,11 +64,11 @@ function loadRazorpayScript() {
 
 export function ExperimentPage() {
   const navigate = useNavigate()
-  const { id } = useParams()
+  const { id, experimentId: parameterExperimentId } = useParams<{ id?: string; experimentId?: string }>()
   const { state } = useLocation()
   const routeState = (state || {}) as ExperimentRouteState
   const storedExperimentId = typeof window === 'undefined' ? undefined : sessionStorage.getItem('revora.experimentId') || undefined
-  const experimentId = id || routeState.experimentId || storedExperimentId
+  const experimentId = parameterExperimentId || id || routeState.experimentId || storedExperimentId
   const experimentQuery = useExperiment(experimentId)
   const start = useStartExperiment()
   const createOrder = useCreatePaymentOrder()
@@ -144,7 +144,7 @@ export function ExperimentPage() {
       toast.error(error instanceof Error ? error.message : 'Unable to create payment order')
     }
   }
-  const completeExperiment = () => complete.mutate(experimentId, { onSuccess: (result) => navigate('/results', { state: { experiment: result } }) })
+  const completeExperiment = () => complete.mutate(experimentId, { onSuccess: (result) => navigate(`/results/${experimentId}`, { state: { experiment: result, experimentId } }) })
 
   return <><Toaster theme="dark" position="bottom-right" /><motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }} className="max-w-5xl space-y-6"><div><div className="mb-4 flex items-center gap-3 text-xs font-medium uppercase tracking-[0.16em] text-emerald"><FlaskConical size={15} />Experiment design</div><div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><h1 className="text-3xl font-semibold tracking-[-0.045em] text-white sm:text-4xl">Verify the experiment.</h1><p className="mt-3 max-w-xl text-sm leading-6 text-muted">A guarded proposal for the opportunity you just discovered.</p></div><StatusBadge status={status} /></div></div>
     {guardrails && <Card><CardHeader><div className="flex items-center gap-3"><ShieldCheck size={17} className="text-emerald" /><div><p className="text-sm font-medium text-white">Guardrail verification</p><p className="mt-1 text-xs text-muted">Every check must pass before exposure begins.</p></div></div></CardHeader><CardContent className="space-y-3">{guardrails.checks.map((check, index) => <motion.div key={check.name} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.25, delay: index * 0.1 }} className="flex items-start gap-3 rounded-lg border border-line bg-white/[0.018] p-4"><div className={check.passed ? 'mt-0.5 text-emerald' : 'mt-0.5 text-red-300'}>{check.passed ? <Check size={16} /> : <X size={16} />}</div><div><p className="text-sm font-medium text-slate-200">{titleCase(check.name)}</p><p className="mt-1 text-xs leading-5 text-muted">{check.reason}</p></div><span className={check.passed ? 'ml-auto text-[10px] uppercase tracking-[0.12em] text-emerald' : 'ml-auto text-[10px] uppercase tracking-[0.12em] text-red-300'}>{check.passed ? 'Passed' : 'Blocked'}</span></motion.div>)}</CardContent></Card>}

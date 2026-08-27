@@ -1,6 +1,8 @@
 export interface Opportunity {
   baseProductId: string
   relatedProductId: string
+  baseProductName?: string | null
+  relatedProductName?: string | null
   baseCustomerCount: number
   coPurchaseCustomerCount: number
   affinity: number
@@ -11,6 +13,8 @@ export interface Opportunity {
 export interface RecommendationFacts {
   baseProductId: string
   relatedProductId: string
+  baseProductName?: string | null
+  relatedProductName?: string | null
   baseCustomerCount: number
   coPurchaseCustomerCount: number
   affinity: number

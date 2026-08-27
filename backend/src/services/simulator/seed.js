@@ -186,7 +186,7 @@ async function reseedDatabase({ reset, customerCount, orderCount, seed }) {
 
   await mongoose.connect(mongoUri);
 
-  const collections = ['orders', 'customers', 'products'];
+  const collections = ['orders', 'customers', 'products', 'experiments', 'auditlogs'];
 
   if (reset) {
     for (const collectionName of collections) {

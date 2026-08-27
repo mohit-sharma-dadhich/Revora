@@ -1,4 +1,5 @@
 const { getProductAffinity, MIN_BASE_CUSTOMERS } = require('../analytics/productAffinity');
+const Product = require('../../models/Product');
 
 const DEFAULT_MIN_AFFINITY = 0.65;
 
@@ -79,7 +80,17 @@ async function getRevenueOpportunity({
     return left.relatedProductId.localeCompare(right.relatedProductId);
   });
 
-  return validOpportunities[0];
+  const opportunity = validOpportunities[0];
+  const products = await Product.find({
+    _id: { $in: [opportunity.baseProductId, opportunity.relatedProductId] },
+  }, { name: 1 }).lean();
+  const productNames = new Map(products.map((product) => [product._id.toString(), product.name]));
+
+  return {
+    ...opportunity,
+    baseProductName: productNames.get(opportunity.baseProductId) || null,
+    relatedProductName: productNames.get(opportunity.relatedProductId) || null,
+  };
 }
 
 module.exports = {

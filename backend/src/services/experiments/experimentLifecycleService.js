@@ -1,4 +1,5 @@
 const Experiment = require('../../models/Experiment');
+const Order = require('../../models/Order');
 const AuditLog = require('../../models/AuditLog');
 const { measureExperiment } = require('../measurement/measurementService');
 const { decideOutcome } = require('./decisionService');
@@ -165,6 +166,25 @@ async function completeExperiment(experimentId) {
     });
 
     throw new Error(message);
+  }
+
+  const [controlPayment, treatmentPayment] = await Promise.all([
+    Order.exists({
+      experimentId: experiment._id,
+      experimentGroup: 'control',
+      source: 'experiment',
+      status: 'paid',
+    }),
+    Order.exists({
+      experimentId: experiment._id,
+      experimentGroup: 'treatment',
+      source: 'experiment',
+      status: 'paid',
+    }),
+  ]);
+
+  if (!controlPayment || !treatmentPayment) {
+    throw new Error('At least one paid payment is required for both control and treatment groups before completion.');
   }
 
   experiment.status = 'completed';

@@ -197,9 +197,13 @@ function assignAudienceDeterministically(audienceCustomerIds, treatmentPercent) 
   };
 }
 
-async function getActiveExperimentForOpportunity(relatedProductId) {
+async function getActiveExperimentForOpportunity(baseProductId, relatedProductId, strategy = DEFAULT_STRATEGY) {
   return Experiment.findOne({
-    strategy: DEFAULT_STRATEGY,
+    strategy,
+    $or: [
+      { baseProductId: new mongoose.Types.ObjectId(baseProductId) },
+      { 'results.baseProductId': new mongoose.Types.ObjectId(baseProductId) },
+    ],
     targetProductId: new mongoose.Types.ObjectId(relatedProductId),
     status: { $in: ['draft', 'pending', 'running'] },
   }).lean();
@@ -214,7 +218,11 @@ async function proposeExperiment({ opportunity, minEligibleAudience = DEFAULT_MI
   const relatedProductExists = await Product.exists({ _id: opportunity.relatedProductId });
 
   const eligibleCustomerIds = await findEligibleCustomersForProduct(opportunity.baseProductId);
-  const activeExperimentExists = await getActiveExperimentForOpportunity(opportunity.relatedProductId);
+  const activeExperimentExists = await getActiveExperimentForOpportunity(
+    opportunity.baseProductId,
+    opportunity.relatedProductId,
+    strategy,
+  );
 
   const guardrails = evaluateGuardrails({
     eligibleCustomerIds,

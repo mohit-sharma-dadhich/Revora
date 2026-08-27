@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
 import { BarChart3, Check, ChevronDown, FileCheck2, RotateCcw, Scale, X } from 'lucide-react'
 import { useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
@@ -18,9 +18,10 @@ function ResultEmptyState() {
 }
 
 export function ResultsPage() {
+  const { experimentId: parameterExperimentId } = useParams<{ experimentId?: string }>()
   const { state } = useLocation()
   const routeState = (state || {}) as ResultsRouteState
-  const experimentId = routeState.experimentId
+  const experimentId = parameterExperimentId || routeState.experimentId
   const experimentQuery = useExperiment(experimentId)
   const experiment = routeState.experiment || experimentQuery.data
   const [rawOpen, setRawOpen] = useState(false)

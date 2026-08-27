@@ -37,6 +37,8 @@ function normalizeAgentEvidence(opportunity) {
   return {
     baseProductId: String(opportunity.baseProductId),
     relatedProductId: String(opportunity.relatedProductId),
+    baseProductName: opportunity.baseProductName ? String(opportunity.baseProductName) : null,
+    relatedProductName: opportunity.relatedProductName ? String(opportunity.relatedProductName) : null,
     baseCustomerCount: Number(opportunity.baseCustomerCount),
     coPurchaseCustomerCount: Number(opportunity.coPurchaseCustomerCount),
     affinity: Number(opportunity.affinity),
@@ -51,6 +53,7 @@ function buildSystemPrompt() {
     'You must use the provided application-generated evidence as the source of truth.',
     'Do not alter, recalculate, or invent any factual values from the opportunity object.',
     'Do not invent missing customer counts, product IDs, affinity values, or revenue numbers.',
+    'Use the supplied product names in recommendation and reasoning text; do not expose product IDs in merchant-facing text.',
     'If the evidence is insufficient, say so clearly in the recommendation or reasoning.',
     'Your job is to interpret the evidence and suggest the next action in plain language.',
     'Never say that you created or measured a business result that was not supplied by the application.',
@@ -69,6 +72,8 @@ function buildUserPrompt(evidence) {
     facts: {
       baseProductId: evidence.baseProductId,
       relatedProductId: evidence.relatedProductId,
+      baseProductName: evidence.baseProductName,
+      relatedProductName: evidence.relatedProductName,
       baseCustomerCount: evidence.baseCustomerCount,
       coPurchaseCustomerCount: evidence.coPurchaseCustomerCount,
       affinity: evidence.affinity,
@@ -79,6 +84,7 @@ function buildUserPrompt(evidence) {
       'These values are authoritative application-generated evidence.',
       'Do not alter or recalculate them.',
       'Do not invent missing information.',
+      'Use facts.baseProductName and facts.relatedProductName in recommendation and reasoning text instead of product IDs.',
       'If evidence is insufficient, explain that clearly.',
       'Respond with valid JSON only.',
       'The JSON must have exactly these required top-level fields: recommendation, reasoning, confidence, evidence.',
@@ -195,6 +201,8 @@ async function generateRecommendationFromOpportunity(opportunity) {
     facts: {
       baseProductId: evidence.baseProductId,
       relatedProductId: evidence.relatedProductId,
+      baseProductName: evidence.baseProductName,
+      relatedProductName: evidence.relatedProductName,
       baseCustomerCount: evidence.baseCustomerCount,
       coPurchaseCustomerCount: evidence.coPurchaseCustomerCount,
       affinity: evidence.affinity,
