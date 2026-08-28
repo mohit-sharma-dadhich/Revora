@@ -7,6 +7,11 @@ const Experiment = require('../../models/Experiment');
 const AuditLog = require('../../models/AuditLog');
 const { createRazorpayService } = require('../razorpay/razorpayService');
 
+function ownershipFilter(auth) {
+  if (!auth) return {};
+  return auth.mode === 'test' ? { sessionId: auth.sessionId } : { ownerId: auth.user.id };
+}
+
 function isObjectIdLike(value) {
   return typeof value === 'string' && value.trim().length > 0;
 }
@@ -21,7 +26,7 @@ async function logPaymentAudit({ action, status, reason, metadata = {} }) {
   });
 }
 
-async function validateExperimentCustomerAndProduct({ experimentId, customerId }) {
+async function validateExperimentCustomerAndProduct({ experimentId, customerId, auth }) {
   if (!isObjectIdLike(experimentId)) {
     throw new Error('Experiment identifier is required.');
   }
@@ -30,7 +35,7 @@ async function validateExperimentCustomerAndProduct({ experimentId, customerId }
     throw new Error('Customer identifier is required.');
   }
 
-  const experiment = await Experiment.findById(experimentId).lean();
+  const experiment = await Experiment.findOne({ _id: experimentId, ...ownershipFilter(auth) }).lean();
 
   if (!experiment) {
     throw new Error('Experiment not found.');
@@ -96,13 +101,15 @@ async function validateExperimentCustomerAndProduct({ experimentId, customerId }
   };
 }
 
-async function createExperimentOrder({ experimentId, customerId }) {
+async function createExperimentOrder({ experimentId, customerId, auth }) {
   const { experiment, customer, experimentGroup, baseProductId, targetProductId, baseProduct, targetProduct } = await validateExperimentCustomerAndProduct({
     experimentId,
     customerId,
+    auth,
   });
 
   const existingOrder = await Order.findOne({
+    ...ownershipFilter(auth),
     experimentId,
     customerId,
     source: 'experiment',
@@ -121,6 +128,7 @@ async function createExperimentOrder({ experimentId, customerId }) {
     : baseProduct.price + targetProduct.price;
 
   const orderDocument = await Order.create({
+    ...(auth ? { ...ownershipFilter(auth), expiresAt: auth.mode === 'test' ? auth.expiresAt : null } : {}),
     customerId,
     productIds,
     amount,
@@ -372,12 +380,12 @@ async function handlePaymentFailedWebhook(payload, eventId) {
   return { success: true, data: { orderId: order.razorpayOrderId, paymentId: order.razorpayPaymentId, status: order.status, experimentId: order.experimentId ? order.experimentId.toString() : null, customerId: order.customerId ? order.customerId.toString() : null, group: order.experimentGroup || null } };
 }
 
-async function verifyExperimentPayment({ razorpay_order_id, razorpay_payment_id, razorpay_signature }) {
+async function verifyExperimentPayment({ razorpay_order_id, razorpay_payment_id, razorpay_signature, auth }) {
   if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
     throw new Error('Razorpay order ID, payment ID, and signature are required.');
   }
 
-  const order = await Order.findOne({ razorpayOrderId: razorpay_order_id }).lean();
+  const order = await Order.findOne({ razorpayOrderId: razorpay_order_id, ...ownershipFilter(auth) }).lean();
 
   if (!order) {
     throw new Error('Payment order not found.');

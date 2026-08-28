@@ -179,3 +179,17 @@ export interface ApiErrorResponse {
   success: false
   error: string
 }
+
+export interface AuthUser {
+  id: string
+  name: string
+  email: string
+}
+
+export interface AuthSession {
+  token: string
+  sessionId: string
+  mode: 'test' | 'live'
+  expiresAt: string
+  user: AuthUser | null
+}

@@ -1,5 +1,6 @@
 import type {
   ApiErrorResponse,
+  AuthSession,
   ApiResponse,
   CreatePaymentOrderRequest,
   CreatePaymentOrderResponseData,
@@ -56,10 +57,12 @@ function getErrorMessage(body: unknown, statusText: string): string {
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const token = localStorage.getItem('revora_session_token')
   const response = await fetch(`${getApiBaseUrl()}${path}`, {
     ...options,
     headers: {
       ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options.headers,
     },
   })
@@ -79,6 +82,18 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   }
 
   return (body as ApiResponse<T>).data
+}
+
+export function createTestSession(): Promise<AuthSession> {
+  return request<AuthSession>('/auth/test-session', { method: 'POST' })
+}
+
+export function signIn(email: string, password: string): Promise<AuthSession> {
+  return request<AuthSession>('/auth/signin', { method: 'POST', body: JSON.stringify({ email, password }) })
+}
+
+export function signUp(name: string, email: string, password: string): Promise<AuthSession> {
+  return request<AuthSession>('/auth/signup', { method: 'POST', body: JSON.stringify({ name, email, password }) })
 }
 
 function queryString(params?: ProposeExperimentParams): string {

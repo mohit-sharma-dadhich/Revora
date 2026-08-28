@@ -7,6 +7,7 @@ async function createOrder(req, res) {
     const result = await createExperimentOrder({
       experimentId,
       customerId,
+      auth: req.auth,
     });
 
     return res.status(200).json({
@@ -38,6 +39,7 @@ async function verifyPayment(req, res) {
       razorpay_order_id,
       razorpay_payment_id,
       razorpay_signature,
+      auth: req.auth,
     });
 
     return res.status(200).json(result);

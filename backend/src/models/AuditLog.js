@@ -2,6 +2,20 @@ const mongoose = require('mongoose');
 
 const auditLogSchema = new mongoose.Schema(
   {
+    ownerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    sessionId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Session',
+      default: null,
+    },
+    expiresAt: {
+      type: Date,
+      default: null,
+    },
     timestamp: {
       type: Date,
       default: Date.now,
@@ -37,5 +51,7 @@ const auditLogSchema = new mongoose.Schema(
     timestamps: false,
   }
 );
+
+auditLogSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0, partialFilterExpression: { expiresAt: { $type: 'date' } } });
 
 module.exports = mongoose.model('AuditLog', auditLogSchema);

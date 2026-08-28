@@ -6,7 +6,7 @@ const {
 
 async function getExperiment(req, res) {
   try {
-    const experiment = await getExperimentById(req.params.id);
+    const experiment = await getExperimentById(req.params.id, req.auth);
 
     return res.status(200).json({
       success: true,
@@ -22,7 +22,7 @@ async function getExperiment(req, res) {
 
 async function startExperiment(req, res) {
   try {
-    const experiment = await startExperimentService(req.params.id);
+    const experiment = await startExperimentService(req.params.id, req.auth);
 
     return res.status(200).json({
       success: true,
@@ -40,7 +40,7 @@ async function startExperiment(req, res) {
 
 async function completeExperiment(req, res) {
   try {
-    const experiment = await completeExperimentWithMeasurement(req.params.id, req.body || {});
+    const experiment = await completeExperimentWithMeasurement(req.params.id, req.body || {}, req.auth);
 
     return res.status(200).json({
       success: true,

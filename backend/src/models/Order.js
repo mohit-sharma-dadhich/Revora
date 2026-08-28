@@ -2,6 +2,20 @@ const mongoose = require('mongoose');
 
 const orderSchema = new mongoose.Schema(
   {
+    ownerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    sessionId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Session',
+      default: null,
+    },
+    expiresAt: {
+      type: Date,
+      default: null,
+    },
     customerId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Customer',
@@ -84,5 +98,6 @@ orderSchema.index({ customerId: 1 });
 orderSchema.index({ productIds: 1 });
 orderSchema.index({ source: 1, createdAt: -1 });
 orderSchema.index({ experimentId: 1, customerId: 1, source: 1 });
+orderSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0, partialFilterExpression: { expiresAt: { $type: 'date' } } });
 
 module.exports = mongoose.model('Order', orderSchema);

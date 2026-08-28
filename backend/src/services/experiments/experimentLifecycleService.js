@@ -27,7 +27,12 @@ function normalizeExperiment(experiment) {
   };
 }
 
-async function logLifecycleEvent({ action, status = 'SUCCESS', reason, experimentId, metadata = {} }) {
+function ownershipFilter(auth) {
+  if (!auth) return {};
+  return auth.mode === 'test' ? { sessionId: auth.sessionId } : { ownerId: auth.user.id };
+}
+
+async function logLifecycleEvent({ action, status = 'SUCCESS', reason, experimentId, metadata = {}, auth }) {
   await AuditLog.create({
     actor: 'system',
     action,
@@ -37,15 +42,16 @@ async function logLifecycleEvent({ action, status = 'SUCCESS', reason, experimen
       experimentId,
       ...metadata,
     },
+    ...(auth ? { ...ownershipFilter(auth), expiresAt: auth.mode === 'test' ? auth.expiresAt : null } : {}),
   });
 }
 
-async function getExperimentById(experimentId) {
+async function getExperimentById(experimentId, auth) {
   if (!experimentId) {
     throw new Error('Experiment identifier is required.');
   }
 
-  const experiment = await Experiment.findById(experimentId).lean();
+  const experiment = await Experiment.findOne({ _id: experimentId, ...ownershipFilter(auth) }).lean();
 
   if (!experiment) {
     throw new Error('Experiment not found.');
@@ -54,12 +60,12 @@ async function getExperimentById(experimentId) {
   return normalizeExperiment(experiment);
 }
 
-async function startExperiment(experimentId) {
+async function startExperiment(experimentId, auth) {
   if (!experimentId) {
     throw new Error('Experiment identifier is required.');
   }
 
-  const experiment = await Experiment.findById(experimentId);
+  const experiment = await Experiment.findOne({ _id: experimentId, ...ownershipFilter(auth) });
 
   if (!experiment) {
     throw new Error('Experiment not found.');
@@ -91,6 +97,7 @@ async function startExperiment(experimentId) {
         previousStatus: currentStatus,
         attemptedTransition: 'running',
       },
+      auth,
     });
 
     throw new Error(message);
@@ -131,17 +138,18 @@ async function startExperiment(experimentId) {
       treatmentCount: experiment.treatmentCustomerIds.length,
       newStatus: experiment.status,
     },
+    auth,
   });
 
   return normalizeExperiment(experiment.toObject());
 }
 
-async function completeExperiment(experimentId) {
+async function completeExperiment(experimentId, auth) {
   if (!experimentId) {
     throw new Error('Experiment identifier is required.');
   }
 
-  const experiment = await Experiment.findById(experimentId);
+  const experiment = await Experiment.findOne({ _id: experimentId, ...ownershipFilter(auth) });
 
   if (!experiment) {
     throw new Error('Experiment not found.');
@@ -171,12 +179,14 @@ async function completeExperiment(experimentId) {
   const [controlPayment, treatmentPayment] = await Promise.all([
     Order.exists({
       experimentId: experiment._id,
+      ...ownershipFilter(auth),
       experimentGroup: 'control',
       source: 'experiment',
       status: 'paid',
     }),
     Order.exists({
       experimentId: experiment._id,
+      ...ownershipFilter(auth),
       experimentGroup: 'treatment',
       source: 'experiment',
       status: 'paid',
@@ -202,24 +212,25 @@ async function completeExperiment(experimentId) {
       targetProductId: experiment.targetProductId.toString(),
       finalStatus: experiment.status,
     },
+    auth,
   });
 
   return normalizeExperiment(experiment.toObject());
 }
 
-async function completeExperimentWithMeasurement(experimentId, options = {}) {
+async function completeExperimentWithMeasurement(experimentId, options = {}, auth) {
   if (!experimentId) {
     throw new Error('Experiment identifier is required.');
   }
 
-  const completedExperiment = await completeExperiment(experimentId);
+  const completedExperiment = await completeExperiment(experimentId, auth);
   const measurement = await measureExperiment(experimentId);
   const outcome = decideOutcome({
     ...measurement,
     ...options,
   });
 
-  const experiment = await Experiment.findById(experimentId);
+  const experiment = await Experiment.findOne({ _id: experimentId, ...ownershipFilter(auth) });
 
   if (!experiment) {
     throw new Error('Experiment not found.');

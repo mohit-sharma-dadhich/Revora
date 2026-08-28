@@ -1,14 +1,17 @@
 import { motion } from 'framer-motion'
 import { BarChart3, BrainCircuit, ChevronLeft, CircleDollarSign, FlaskConical, Gauge, GitBranch, Lightbulb, Menu, Network, Scale, Settings2, Sparkles, X } from 'lucide-react'
-import { Component, useState, type ReactNode } from 'react'
+import { Component, useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { Button } from './components/ui/button'
 import { Card, CardContent } from './components/ui/card'
 import { Separator } from './components/ui/separator'
 import { cn } from './lib/utils'
+import { createTestSession, signIn, signUp } from './lib/api'
+import type { AuthSession } from './lib/types'
 import { ExperimentPage } from './pages/ExperimentPage'
 import { OpportunityPage } from './pages/OpportunityPage'
 import { ResultsPage } from './pages/ResultsPage'
+import { ProfilePage } from './pages/ProfilePage'
 
 const navigation = [
   { label: 'Overview', to: '/', icon: Gauge },
@@ -86,23 +89,78 @@ function OverviewPage() {
   )
 }
 
-function Sidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
+function Sidebar({ open, onClose, onProfile }: { open: boolean; onClose: () => void; onProfile: () => void }) {
+  const session = JSON.parse(localStorage.getItem('revora_session') || 'null') as AuthSession | null
+  const displayName = session?.user?.name || 'Test workspace'
+  const displayEmail = session?.user?.email || 'Expires in 2 hours'
   return <>
     {open && <button aria-label="Close navigation" onClick={onClose} className="fixed inset-0 z-30 bg-black/60 lg:hidden" />}
     <aside className={cn('fixed inset-y-0 left-0 z-40 flex w-[248px] flex-col border-r border-line bg-[#0d0e0f] px-4 py-5 transition-transform duration-300 lg:translate-x-0', open ? 'translate-x-0' : '-translate-x-full')}>
       <div className="flex items-center justify-between px-3"><NavLink to="/" onClick={onClose} className="flex items-center gap-2.5 text-white"><span className="grid size-8 place-items-center rounded-lg bg-emerald text-[#06150f]"><Sparkles size={17} strokeWidth={2.5} /></span><span className="text-lg font-semibold tracking-[-0.04em]">revora</span></NavLink><Button variant="ghost" className="size-8 p-0 lg:hidden" onClick={onClose} aria-label="Close navigation"><X size={17} /></Button></div>
       <div className="mt-12 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#626873]">Workspace</div>
       <nav className="mt-3 space-y-1">{navigation.map(({ label, to, icon: Icon }) => <NavLink key={to} to={to} onClick={onClose} className={({ isActive }) => cn('group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors', isActive ? 'bg-emerald/10 text-emerald' : 'text-muted hover:bg-white/[0.04] hover:text-slate-200')}>{({ isActive }) => <><Icon size={17} strokeWidth={isActive ? 2.2 : 1.8} /><span>{label}</span>{isActive && <ChevronLeft className="ml-auto rotate-180" size={14} />}</>}</NavLink>)}</nav>
-      <div className="mt-auto"><Separator className="mb-4" /><button className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted transition-colors hover:bg-white/[0.04] hover:text-slate-200"><Settings2 size={17} /><span>Settings</span></button><div className="mt-5 flex items-center gap-3 rounded-lg border border-line bg-white/[0.025] p-3"><div className="grid size-8 place-items-center rounded-full bg-[#24332e] text-xs font-semibold text-emerald">AM</div><div className="min-w-0"><p className="truncate text-xs font-medium text-slate-200">Acme Merchant</p><p className="mt-0.5 text-[11px] text-muted">Growth workspace</p></div></div></div>
+      <div className="mt-auto"><Separator className="mb-4" /><button className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted transition-colors hover:bg-white/[0.04] hover:text-slate-200"><Settings2 size={17} /><span>Settings</span></button><button type="button" onClick={onProfile} className="mt-5 flex w-full items-center gap-3 rounded-lg border border-line bg-white/[0.025] p-3 text-left transition-colors hover:bg-white/[0.06]"><div className="grid size-8 place-items-center rounded-full bg-[#24332e] text-xs font-semibold text-emerald">{displayName.slice(0, 2).toUpperCase()}</div><div className="min-w-0"><p className="truncate text-xs font-medium text-slate-200">{displayName}</p><p className="mt-0.5 truncate text-[11px] text-muted">{displayEmail}</p></div></button></div>
     </aside>
   </>
 }
 
+function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSession) => void }) {
+  const [mode, setMode] = useState<'test' | 'live'>('test')
+  const [signupMode, setSignupMode] = useState(false)
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  function hasValidDomain(value: string) {
+    const domain = value.trim().toLowerCase().split('@')[1] || ''
+    return /^(?=.{4,253}$)([a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(domain)
+  }
+
+  async function submit(event: FormEvent) {
+    event.preventDefault()
+    if (mode === 'live' && signupMode && !hasValidDomain(email)) {
+      setError('Please use an email address with a genuine domain, such as gmail.com or yahoo.com.')
+      return
+    }
+    setBusy(true)
+    setError('')
+    try {
+      const session = mode === 'test' ? await createTestSession() : signupMode ? await signUp(name, email, password) : await signIn(email, password)
+      localStorage.setItem('revora_session_token', session.token)
+      localStorage.setItem('revora_session', JSON.stringify(session))
+      onAuthenticated(session)
+    } catch (authError) {
+      setError(authError instanceof Error ? authError.message : 'Unable to start session.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return <div className="grid min-h-screen place-items-center bg-canvas px-5 text-slate-100"><Card className="w-full max-w-md border-line bg-[#0d0e0f]"><CardContent className="p-7 sm:p-9"><div className="flex items-center gap-3 text-white"><span className="grid size-9 place-items-center rounded-lg bg-emerald text-[#06150f]"><Sparkles size={18} /></span><span className="text-xl font-semibold">revora</span></div><p className="mt-8 text-xs font-semibold uppercase tracking-[0.16em] text-emerald">Workspace access</p><h1 className="mt-3 text-3xl font-semibold tracking-tight text-white">Start growing revenue</h1><div className="mt-7 grid grid-cols-2 gap-2 rounded-lg bg-white/[0.04] p-1"><button type="button" onClick={() => setMode('test')} className={cn('rounded-md px-3 py-2 text-sm', mode === 'test' ? 'bg-emerald text-[#06150f]' : 'text-muted')}>Test mode</button><button type="button" onClick={() => setMode('live')} className={cn('rounded-md px-3 py-2 text-sm', mode === 'live' ? 'bg-emerald text-[#06150f]' : 'text-muted')}>Sign in</button></div>{mode === 'test' ? <><p className="mt-5 text-sm leading-6 text-muted">Explore with temporary data. This workspace and its experiments expire automatically after two hours.</p><Button className="mt-7 w-full" onClick={() => submit({ preventDefault() {} } as FormEvent)} disabled={busy}>Continue as guest</Button></> : <form className="mt-6 space-y-4" onSubmit={submit}>{signupMode && <input value={name} onChange={(event) => setName(event.target.value)} placeholder="Name" className="h-11 w-full rounded-lg border border-line bg-white/[0.03] px-3 text-sm text-white outline-none" required /> }<input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="Email" className="h-11 w-full rounded-lg border border-line bg-white/[0.03] px-3 text-sm text-white outline-none" required /><input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Password (8+ characters)" className="h-11 w-full rounded-lg border border-line bg-white/[0.03] px-3 text-sm text-white outline-none" minLength={8} required /><Button className="w-full" disabled={busy}>{signupMode ? 'Create account' : 'Sign in'}</Button><button type="button" onClick={() => setSignupMode((current) => !current)} className="w-full text-sm text-emerald">{signupMode ? 'Already have an account? Sign in' : 'Create a new account'}</button></form>}{error && <p className="mt-4 text-sm text-rose-300">{error}</p>}</CardContent></Card></div>
+}
+
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [session, setSession] = useState<AuthSession | null>(() => JSON.parse(localStorage.getItem('revora_session') || 'null'))
   const location = useLocation()
+  const navigate = useNavigate()
+  useEffect(() => {
+    if (session?.mode === 'test' && new Date(session.expiresAt) <= new Date()) {
+      localStorage.removeItem('revora_session_token')
+      localStorage.removeItem('revora_session')
+      setSession(null)
+    }
+  }, [session])
+  if (!session) return <AuthScreen onAuthenticated={setSession} />
+  const handleLogout = () => {
+    localStorage.removeItem('revora_session_token')
+    localStorage.removeItem('revora_session')
+    setSession(null)
+  }
   const current = navigation.find((item) => item.to === location.pathname) ?? navigation[0]
-  return <div className="min-h-screen bg-canvas text-slate-100"><Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} /><main className="min-h-screen lg:pl-[248px]"><header className="flex h-[72px] items-center justify-between border-b border-line px-5 sm:px-8 lg:px-12"><div className="flex items-center gap-3"><Button variant="ghost" className="size-9 p-0 lg:hidden" onClick={() => setSidebarOpen(true)} aria-label="Open navigation"><Menu size={19} /></Button><span className="text-sm text-muted">{current.label}</span></div><div className="flex items-center gap-3"><span className="hidden text-xs text-[#626873] sm:inline">Last synced just now</span><div className="size-2 rounded-full bg-emerald shadow-[0_0_12px_rgba(16,185,129,0.8)]" /></div></header><div className="px-5 py-10 sm:px-8 sm:py-14 lg:px-12"><AppErrorBoundary><Routes><Route path="/" element={<OverviewPage />} /><Route path="/opportunity" element={<OpportunityPage />} /><Route path="/experiment" element={<ExperimentPage />} /><Route path="/experiment/:id" element={<ExperimentPage />} /><Route path="/experiments/:experimentId" element={<ExperimentPage />} /><Route path="/results" element={<ResultsPage />} /><Route path="/results/:experimentId" element={<ResultsPage />} /></Routes></AppErrorBoundary></div></main></div>
+  return <div className="min-h-screen bg-canvas text-slate-100"><Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} onProfile={() => { setSidebarOpen(false); navigate('/profile') }} /><main className="min-h-screen lg:pl-[248px]"><header className="flex h-[72px] items-center justify-between border-b border-line px-5 sm:px-8 lg:px-12"><div className="flex items-center gap-3"><Button variant="ghost" className="size-9 p-0 lg:hidden" onClick={() => setSidebarOpen(true)} aria-label="Open navigation"><Menu size={19} /></Button><span className="text-sm text-muted">{current.label}</span></div><div className="flex items-center gap-3"><span className="hidden text-xs text-[#626873] sm:inline">Last synced just now</span><div className="size-2 rounded-full bg-emerald shadow-[0_0_12px_rgba(16,185,129,0.8)]" /></div></header><div className="px-5 py-10 sm:px-8 sm:py-14 lg:px-12"><AppErrorBoundary><Routes><Route path="/" element={<OverviewPage />} /><Route path="/opportunity" element={<OpportunityPage />} /><Route path="/experiment" element={<ExperimentPage />} /><Route path="/experiment/:id" element={<ExperimentPage />} /><Route path="/experiments/:experimentId" element={<ExperimentPage />} /><Route path="/results" element={<ResultsPage />} /><Route path="/results/:experimentId" element={<ResultsPage />} /><Route path="/profile" element={<ProfilePage session={session} onLogout={handleLogout} />} /></Routes></AppErrorBoundary></div></main></div>
 }
 
 export default App

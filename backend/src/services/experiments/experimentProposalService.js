@@ -60,13 +60,19 @@ function normalizeOptions(options = {}) {
   };
 }
 
-async function logAudit({ actor, action, status, reason, metadata }) {
+function ownershipFilter(auth) {
+  if (!auth) return {};
+  return auth.mode === 'test' ? { sessionId: auth.sessionId } : { ownerId: auth.user.id };
+}
+
+async function logAudit({ actor, action, status, reason, metadata, auth }) {
   await AuditLog.create({
     actor,
     action,
     status,
     reason: reason || null,
     metadata: metadata || {},
+    ...(auth ? { ...ownershipFilter(auth), expiresAt: auth.mode === 'test' ? auth.expiresAt : null } : {}),
   });
 }
 
@@ -238,8 +244,9 @@ function assignAudienceDeterministically(audienceCustomerIds, treatmentPercent, 
   };
 }
 
-async function getActiveExperimentForOpportunity(baseProductId, relatedProductId, strategy = DEFAULT_STRATEGY) {
+async function getActiveExperimentForOpportunity(baseProductId, relatedProductId, strategy = DEFAULT_STRATEGY, auth) {
   return Experiment.findOne({
+    ...ownershipFilter(auth),
     strategy,
     $or: [
       { baseProductId: new mongoose.Types.ObjectId(baseProductId) },
@@ -250,7 +257,7 @@ async function getActiveExperimentForOpportunity(baseProductId, relatedProductId
   }).lean();
 }
 
-async function proposeExperiment({ opportunity, minEligibleAudience = DEFAULT_MIN_ELIGIBLE_AUDIENCE, maxExposurePercent = DEFAULT_MAX_EXPOSURE_PERCENT, treatmentPercent = DEFAULT_TREATMENT_PERCENT, strategy = DEFAULT_STRATEGY } = {}) {
+async function proposeExperiment({ opportunity, minEligibleAudience = DEFAULT_MIN_ELIGIBLE_AUDIENCE, maxExposurePercent = DEFAULT_MAX_EXPOSURE_PERCENT, treatmentPercent = DEFAULT_TREATMENT_PERCENT, strategy = DEFAULT_STRATEGY, auth } = {}) {
   if (!opportunity || !opportunity.baseProductId || !opportunity.relatedProductId) {
     throw new Error('A valid opportunity is required to propose an experiment');
   }
@@ -263,6 +270,7 @@ async function proposeExperiment({ opportunity, minEligibleAudience = DEFAULT_MI
     opportunity.baseProductId,
     opportunity.relatedProductId,
     strategy,
+    auth,
   );
 
   const guardrails = evaluateGuardrails({
@@ -288,6 +296,7 @@ async function proposeExperiment({ opportunity, minEligibleAudience = DEFAULT_MI
         opportunity,
         guardrails,
       },
+      auth,
     });
 
     return {
@@ -327,6 +336,7 @@ async function proposeExperiment({ opportunity, minEligibleAudience = DEFAULT_MI
   };
 
   const experiment = await Experiment.create({
+    ...(auth ? { ...ownershipFilter(auth), expiresAt: auth.mode === 'test' ? auth.expiresAt : null } : {}),
     strategy,
     baseProductId: opportunity.baseProductId,
     targetProductId: opportunity.relatedProductId,
@@ -361,6 +371,7 @@ async function proposeExperiment({ opportunity, minEligibleAudience = DEFAULT_MI
       targetProductId: opportunity.relatedProductId,
       opportunity,
     },
+    auth,
   });
 
   return {
@@ -382,6 +393,7 @@ async function createProposalFromBestOpportunity({
   maxExposurePercent = DEFAULT_MAX_EXPOSURE_PERCENT,
   treatmentPercent = DEFAULT_TREATMENT_PERCENT,
   strategy = DEFAULT_STRATEGY,
+  auth,
 } = {}) {
   const opportunity = await getRevenueOpportunity();
 
@@ -407,6 +419,7 @@ async function createProposalFromBestOpportunity({
     maxExposurePercent,
     treatmentPercent,
     strategy,
+    auth,
   });
 }
 

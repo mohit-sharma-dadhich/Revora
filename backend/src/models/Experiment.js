@@ -2,6 +2,20 @@ const mongoose = require('mongoose');
 
 const experimentSchema = new mongoose.Schema(
   {
+    ownerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    sessionId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Session',
+      default: null,
+    },
+    expiresAt: {
+      type: Date,
+      default: null,
+    },
     strategy: {
       type: String,
       required: true,
@@ -67,5 +81,7 @@ experimentSchema.pre('validate', function (next) {
 
   next();
 });
+
+experimentSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0, partialFilterExpression: { expiresAt: { $type: 'date' } } });
 
 module.exports = mongoose.model('Experiment', experimentSchema);

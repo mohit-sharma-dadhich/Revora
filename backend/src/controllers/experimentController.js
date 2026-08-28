@@ -12,6 +12,7 @@ async function proposeExperiment(req, res) {
       maxExposurePercent,
       treatmentPercent,
       strategy,
+      auth: req.auth,
     });
 
     return res.status(200).json({
