@@ -200,7 +200,7 @@ function evaluateGuardrails({
   };
 }
 
-function assignAudienceDeterministically(audienceCustomerIds, treatmentPercent, seed = DEFAULT_ASSIGNMENT_SEED) {
+function shuffleAudienceDeterministically(audienceCustomerIds, seed = DEFAULT_ASSIGNMENT_SEED) {
   const shuffledAudience = [...audienceCustomerIds];
   const random = createSeededRandom(seed);
 
@@ -208,6 +208,16 @@ function assignAudienceDeterministically(audienceCustomerIds, treatmentPercent, 
     const swapIndex = Math.floor(random() * (index + 1));
     [shuffledAudience[index], shuffledAudience[swapIndex]] = [shuffledAudience[swapIndex], shuffledAudience[index]];
   }
+
+  return shuffledAudience;
+}
+
+function selectAudienceDeterministically(eligibleCustomerIds, finalAudienceSize, seed = DEFAULT_ASSIGNMENT_SEED) {
+  return shuffleAudienceDeterministically(eligibleCustomerIds, seed).slice(0, finalAudienceSize);
+}
+
+function assignAudienceDeterministically(audienceCustomerIds, treatmentPercent, seed = DEFAULT_ASSIGNMENT_SEED) {
+  const shuffledAudience = shuffleAudienceDeterministically(audienceCustomerIds, seed);
 
   if (shuffledAudience.length < 2) {
     return {
@@ -298,8 +308,8 @@ async function proposeExperiment({ opportunity, minEligibleAudience = DEFAULT_MI
 
   const maxAudienceSize = Math.floor(eligibleCustomerIds.length * maxExposurePercent);
   const finalAudienceSize = Math.max(2, Math.min(maxAudienceSize, eligibleCustomerIds.length));
-  const selectedAudienceIds = eligibleCustomerIds.slice(0, finalAudienceSize);
   const assignmentSeed = await generateUniqueAssignmentSeed();
+  const selectedAudienceIds = selectAudienceDeterministically(eligibleCustomerIds, finalAudienceSize, assignmentSeed);
   const assignedAudience = assignAudienceDeterministically(selectedAudienceIds, treatmentPercent, assignmentSeed);
 
   const proposal = {
@@ -412,4 +422,5 @@ module.exports = {
   getActiveExperimentForOpportunity,
   logAudit,
   proposeExperiment,
+  selectAudienceDeterministically,
 };
