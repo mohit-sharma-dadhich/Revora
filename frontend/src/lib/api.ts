@@ -1,4 +1,5 @@
 import type {
+  AgentRun,
   ApiErrorResponse,
   AuthSession,
   ApiResponse,
@@ -203,4 +204,12 @@ export function importMerchantData(files: FormData): Promise<ImportResult> {
 
       return (body as ApiResponse<ImportResult>).data
     })
+}
+
+export function getAgentRun(id: string): Promise<AgentRun> {
+  return request<AgentRun>(`/agent-runs/${id}`)
+}
+
+export function getLatestAgentRun(runType: string): Promise<AgentRun> {
+  return request<AgentRun>(`/agent-runs/latest?runType=${encodeURIComponent(runType)}`)
 }

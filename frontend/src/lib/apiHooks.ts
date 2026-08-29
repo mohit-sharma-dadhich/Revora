@@ -7,8 +7,10 @@ import {
 import {
   completeExperiment,
   createPaymentOrder,
+  getAgentRun,
   getAuditLog,
   getExperiment,
+  getLatestAgentRun,
   getOpportunities,
   importMerchantData,
   proposeExperiment,
@@ -16,6 +18,7 @@ import {
   verifyPayment,
 } from './api'
 import type {
+  AgentRun,
   AuditLogResponseData,
   CreatePaymentOrderRequest,
   CreatePaymentOrderResponseData,
@@ -73,4 +76,19 @@ export function useAuditLog(params?: GetAuditLogParams): UseQueryResult<AuditLog
 
 export function useImportMerchantData(): UseMutationResult<ImportResult, Error, FormData> {
   return useMutation({ mutationFn: importMerchantData })
+}
+
+export function useAgentRun(id: string | undefined): UseQueryResult<AgentRun> {
+  return useQuery({
+    queryKey: ['agentRun', id],
+    queryFn: () => getAgentRun(id as string),
+    enabled: Boolean(id),
+  })
+}
+
+export function useLatestAgentRun(runType: string): UseQueryResult<AgentRun> {
+  return useQuery({
+    queryKey: ['latestAgentRun', runType],
+    queryFn: () => getLatestAgentRun(runType),
+  })
 }

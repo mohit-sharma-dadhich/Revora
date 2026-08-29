@@ -217,3 +217,30 @@ export interface ImportResult {
   ordersImported: number
   errors: string[]
 }
+
+export interface AgentStep {
+  stepType: 'analytics_selection' | 'data_inspection' | 'opportunity_identification' | 'ai_reasoning' | 'recommendation_generation' | 'guardrail_check'
+  toolName?: string
+  status: 'pending' | 'running' | 'completed' | 'failed'
+  summary?: string
+  inputSummary?: Record<string, unknown>
+  outputSummary?: Record<string, unknown>
+  startedAt?: string
+  completedAt?: string
+  error?: string
+}
+
+export interface AgentRun {
+  _id: string
+  runType: 'opportunity_discovery' | 'experiment_proposal' | 'result_analysis'
+  status: 'running' | 'completed' | 'failed'
+  goal: string
+  summary?: string
+  finalRecommendation?: string
+  error?: string
+  steps: AgentStep[]
+  startedAt: string
+  completedAt?: string
+  createdAt: string
+  updatedAt: string
+}

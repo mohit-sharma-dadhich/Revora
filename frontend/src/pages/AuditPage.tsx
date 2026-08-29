@@ -10,8 +10,8 @@ import type { AuditLogEntry } from '../lib/types'
 interface AuditPageParams {
   limit: number
   skip: number
-  action: string | null
-  status: string | null
+  action: string | undefined
+  status: string | undefined
 }
 
 function AuditSkeleton() {
@@ -108,8 +108,8 @@ export function AuditPage() {
   const [params, setParams] = useState<AuditPageParams>({
     limit: 50,
     skip: 0,
-    action: null,
-    status: null,
+    action: undefined,
+    status: undefined,
   })
 
   const query = useAuditLog(params)
