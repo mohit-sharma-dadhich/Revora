@@ -12,7 +12,9 @@ import {
   getExperiment,
   getLatestAgentRun,
   getOpportunities,
+  getOpportunityRecommendation,
   importMerchantData,
+  listOpportunities,
   proposeExperiment,
   startExperiment,
   verifyPayment,
@@ -24,10 +26,12 @@ import type {
   CreatePaymentOrderResponseData,
   Experiment,
   ImportResult,
+  Opportunity,
   OpportunityResponseData,
   PaymentResponseData,
   ProposeExperimentParams,
   ProposeExperimentResponseData,
+  Recommendation,
   VerifyPaymentRequest,
 } from './types'
 
@@ -35,7 +39,15 @@ export function useOpportunity(): UseQueryResult<OpportunityResponseData> {
   return useQuery({ queryKey: ['opportunities'], queryFn: getOpportunities })
 }
 
-export function useProposeExperiment(): UseMutationResult<ProposeExperimentResponseData, Error, ProposeExperimentParams | undefined> {
+export function useOpportunityList(limit = 5): UseQueryResult<{ opportunities: Opportunity[] }> {
+  return useQuery({ queryKey: ['opportunityList', limit], queryFn: () => listOpportunities(limit) })
+}
+
+export function useOpportunityRecommendation(): UseMutationResult<{ recommendation: Recommendation | null; aiAvailable: boolean; aiError: string | null }, Error, Opportunity> {
+  return useMutation({ mutationFn: getOpportunityRecommendation })
+}
+
+export function useProposeExperiment(): UseMutationResult<ProposeExperimentResponseData, Error, ProposeExperimentParams | Opportunity | undefined> {
   return useMutation({ mutationFn: proposeExperiment })
 }
 

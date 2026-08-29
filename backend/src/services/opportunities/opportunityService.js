@@ -1,5 +1,31 @@
-const { getRevenueOpportunity } = require('./revenueOpportunity');
+const { getRankedOpportunities, getRevenueOpportunity } = require('./revenueOpportunity');
 const { generateRecommendationFromOpportunity } = require('../agent/revenueAgent');
+
+async function listOpportunities({ auth, limit = 5 } = {}) {
+  const opportunities = await getRankedOpportunities({ auth, limit });
+
+  return {
+    opportunities,
+  };
+}
+
+async function getRecommendationForOpportunity(opportunity) {
+  try {
+    const recommendation = await generateRecommendationFromOpportunity(opportunity);
+
+    return {
+      recommendation,
+      aiAvailable: true,
+      aiError: null,
+    };
+  } catch (error) {
+    return {
+      recommendation: null,
+      aiAvailable: false,
+      aiError: error.message,
+    };
+  }
+}
 
 async function getOpportunityRecommendation(auth) {
   const opportunity = await getRevenueOpportunity({ auth });
@@ -8,27 +34,23 @@ async function getOpportunityRecommendation(auth) {
     return {
       opportunity: null,
       recommendation: null,
-    };
-  }
-
-  try {
-    const recommendation = await generateRecommendationFromOpportunity(opportunity);
-
-    return {
-      opportunity,
-      recommendation,
-      aiAvailable: true,
-    };
-  } catch (error) {
-    return {
-      opportunity,
-      recommendation: null,
       aiAvailable: false,
-      aiError: error.message,
+      aiError: null,
     };
   }
+
+  const result = await getRecommendationForOpportunity(opportunity);
+
+  return {
+    opportunity,
+    recommendation: result.recommendation,
+    aiAvailable: result.aiAvailable,
+    aiError: result.aiError,
+  };
 }
 
 module.exports = {
   getOpportunityRecommendation,
+  listOpportunities,
+  getRecommendationForOpportunity,
 };

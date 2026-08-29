@@ -32,10 +32,11 @@ function calculateOpportunityScore({ affinity, baseCustomerCount }) {
   return Number((affinity * Math.sqrt(baseCustomerCount)).toFixed(10));
 }
 
-async function getRevenueOpportunity({
+async function getRankedOpportunities({
   minAffinity = DEFAULT_MIN_AFFINITY,
   minBaseCustomers = MIN_BASE_CUSTOMERS,
   auth,
+  limit = 5,
 } = {}) {
   if (!Number.isFinite(minAffinity) || minAffinity < 0 || minAffinity > 1) {
     throw new Error('minAffinity must be a number between 0 and 1');
@@ -43,6 +44,10 @@ async function getRevenueOpportunity({
 
   if (!Number.isInteger(minBaseCustomers) || minBaseCustomers < 0) {
     throw new Error('minBaseCustomers must be a non-negative integer');
+  }
+
+  if (!Number.isInteger(limit) || limit < 1) {
+    throw new Error('limit must be a positive integer');
   }
 
   const affinityResults = await getProductAffinity({ minBaseCustomers, auth });
@@ -63,7 +68,7 @@ async function getRevenueOpportunity({
     }));
 
   if (validOpportunities.length === 0) {
-    return null;
+    return [];
   }
 
   validOpportunities.sort((left, right) => {
@@ -82,22 +87,38 @@ async function getRevenueOpportunity({
     return left.relatedProductId.localeCompare(right.relatedProductId);
   });
 
-  const opportunity = validOpportunities[0];
-  const products = await Product.find({
-    ...ownershipFilter(auth),
-    _id: { $in: [opportunity.baseProductId, opportunity.relatedProductId] },
-  }, { name: 1 }).lean();
+  const ranked = validOpportunities.slice(0, limit);
+
+  if (ranked.length === 0) {
+    return [];
+  }
+
+  const productIds = [...new Set(ranked.flatMap((opportunity) => [opportunity.baseProductId, opportunity.relatedProductId]))];
+  const products = await Product.find(
+    {
+      ...ownershipFilter(auth),
+      _id: { $in: productIds },
+    },
+    { name: 1 }
+  ).lean();
+
   const productNames = new Map(products.map((product) => [product._id.toString(), product.name]));
 
-  return {
+  return ranked.map((opportunity) => ({
     ...opportunity,
     baseProductName: productNames.get(opportunity.baseProductId) || null,
     relatedProductName: productNames.get(opportunity.relatedProductId) || null,
-  };
+  }));
+}
+
+async function getRevenueOpportunity(options = {}) {
+  const list = await getRankedOpportunities({ ...options, limit: 1 });
+  return list[0] || null;
 }
 
 module.exports = {
   DEFAULT_MIN_AFFINITY,
   calculateOpportunityScore,
+  getRankedOpportunities,
   getRevenueOpportunity,
 };

@@ -168,6 +168,7 @@ export interface ProposeExperimentParams {
   maxExposurePercent?: number
   treatmentPercent?: number
   strategy?: string
+  opportunity?: Opportunity
 }
 
 export interface ApiResponse<T> {

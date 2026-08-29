@@ -8,10 +8,12 @@ import type {
   CreatePaymentOrderResponseData,
   Experiment,
   ImportResult,
+  Opportunity,
   OpportunityResponseData,
   PaymentResponseData,
   ProposeExperimentParams,
   ProposeExperimentResponseData,
+  Recommendation,
   VerifyPaymentRequest,
 } from './types'
 
@@ -115,8 +117,35 @@ export function getOpportunities(): Promise<OpportunityResponseData> {
   return request<OpportunityResponseData>('/opportunities')
 }
 
-export function proposeExperiment(params?: ProposeExperimentParams): Promise<ProposeExperimentResponseData> {
-  return request<ProposeExperimentResponseData>(`/experiments/propose${queryString(params)}`, { method: 'POST' })
+export function listOpportunities(limit = 5): Promise<{ opportunities: Opportunity[] }> {
+  return request<{ opportunities: Opportunity[] }>(`/opportunities/list?limit=${encodeURIComponent(String(limit))}`)
+}
+
+export function getOpportunityRecommendation(opportunity: Opportunity): Promise<{ recommendation: Recommendation | null; aiAvailable: boolean; aiError: string | null }> {
+  return request<{ recommendation: Recommendation | null; aiAvailable: boolean; aiError: string | null }>('/opportunities/recommend', {
+    method: 'POST',
+    body: JSON.stringify({ opportunity }),
+  })
+}
+
+export function proposeExperiment(params?: ProposeExperimentParams | Opportunity): Promise<ProposeExperimentResponseData> {
+  if (params && typeof params === 'object' && 'baseProductId' in params && 'relatedProductId' in params) {
+    return request<ProposeExperimentResponseData>('/experiments/propose', {
+      method: 'POST',
+      body: JSON.stringify({ opportunity: params as Opportunity }),
+    })
+  }
+
+  const proposalParams = params && typeof params === 'object' && 'opportunity' in params ? params : undefined
+
+  if (proposalParams && proposalParams.opportunity) {
+    return request<ProposeExperimentResponseData>('/experiments/propose', {
+      method: 'POST',
+      body: JSON.stringify({ opportunity: proposalParams.opportunity }),
+    })
+  }
+
+  return request<ProposeExperimentResponseData>(`/experiments/propose${queryString((params as ProposeExperimentParams | undefined) ?? undefined)}`, { method: 'POST' })
 }
 
 export function getExperiment(id: string): Promise<Experiment> {
