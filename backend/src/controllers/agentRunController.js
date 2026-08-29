@@ -3,7 +3,9 @@ const { getRunById, getLatestRun } = require('../services/agent/agentRunService'
 async function getAgentRun(req, res) {
   try {
     const { id } = req.params;
-    const { ownerId, sessionId } = req;
+    if (!req.auth) return res.status(401).json({ success: false, error: 'A valid session is required.' });
+    const ownerId = req.auth.mode === 'live' ? req.auth.user.id : null;
+    const sessionId = req.auth.mode === 'test' ? req.auth.sessionId : null;
     
     if (!id) {
       return res.status(400).json({
@@ -37,7 +39,9 @@ async function getAgentRun(req, res) {
 async function getLatestAgentRun(req, res) {
   try {
     const { runType } = req.query;
-    const { ownerId, sessionId } = req;
+    if (!req.auth) return res.status(401).json({ success: false, error: 'A valid session is required.' });
+    const ownerId = req.auth.mode === 'live' ? req.auth.user.id : null;
+    const sessionId = req.auth.mode === 'test' ? req.auth.sessionId : null;
     
     if (!runType) {
       return res.status(400).json({

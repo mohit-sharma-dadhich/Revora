@@ -2,6 +2,20 @@ const mongoose = require('mongoose');
 
 const productSchema = new mongoose.Schema(
   {
+    ownerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    sessionId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Session',
+      default: null,
+    },
+    expiresAt: {
+      type: Date,
+      default: null,
+    },
     name: {
       type: String,
       required: true,
@@ -26,5 +40,7 @@ const productSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+productSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0, partialFilterExpression: { expiresAt: { $type: 'date' } } });
 
 module.exports = mongoose.model('Product', productSchema);

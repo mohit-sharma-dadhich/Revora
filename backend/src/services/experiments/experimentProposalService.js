@@ -76,10 +76,11 @@ async function logAudit({ actor, action, status, reason, metadata, auth }) {
   });
 }
 
-async function findEligibleCustomersForProduct(baseProductId) {
+async function findEligibleCustomersForProduct(baseProductId, auth) {
   const eligibleRows = await Order.aggregate([
     {
       $match: {
+        ...ownershipFilter(auth),
         source: 'historical',
         status: 'completed',
         productIds: new mongoose.Types.ObjectId(baseProductId),
@@ -262,10 +263,10 @@ async function proposeExperiment({ opportunity, minEligibleAudience = DEFAULT_MI
     throw new Error('A valid opportunity is required to propose an experiment');
   }
 
-  const baseProductExists = await Product.exists({ _id: opportunity.baseProductId });
-  const relatedProductExists = await Product.exists({ _id: opportunity.relatedProductId });
+  const baseProductExists = await Product.exists({ ...ownershipFilter(auth), _id: opportunity.baseProductId });
+  const relatedProductExists = await Product.exists({ ...ownershipFilter(auth), _id: opportunity.relatedProductId });
 
-  const eligibleCustomerIds = await findEligibleCustomersForProduct(opportunity.baseProductId);
+  const eligibleCustomerIds = await findEligibleCustomersForProduct(opportunity.baseProductId, auth);
   const activeExperimentExists = await getActiveExperimentForOpportunity(
     opportunity.baseProductId,
     opportunity.relatedProductId,
@@ -395,7 +396,7 @@ async function createProposalFromBestOpportunity({
   strategy = DEFAULT_STRATEGY,
   auth,
 } = {}) {
-  const opportunity = await getRevenueOpportunity();
+  const opportunity = await getRevenueOpportunity({ auth });
 
   if (!opportunity) {
     return {

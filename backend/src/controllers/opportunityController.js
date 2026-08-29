@@ -2,7 +2,7 @@ const { getOpportunityRecommendation } = require('../services/opportunities/oppo
 
 async function getOpportunity(req, res) {
   try {
-    const result = await getOpportunityRecommendation();
+    const result = await getOpportunityRecommendation(req.auth);
 
     return res.status(200).json({
       success: true,

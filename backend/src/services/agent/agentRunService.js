@@ -108,7 +108,7 @@ async function getRunById(runId, ownerId, sessionId) {
   } else if (sessionId != null) {
     query.sessionId = sessionId;
   } else {
-    throw new Error('Either ownerId or sessionId must be provided');
+    throw new Error('A valid session is required.');
   }
   
   return AgentRun.findOne(query).lean();
@@ -122,7 +122,7 @@ async function getLatestRun(runType, ownerId, sessionId) {
   } else if (sessionId != null) {
     query.sessionId = sessionId;
   } else {
-    throw new Error('Either ownerId or sessionId must be provided');
+    throw new Error('A valid session is required.');
   }
   
   return AgentRun.findOne(query).sort({ createdAt: -1 }).lean();

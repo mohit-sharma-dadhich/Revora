@@ -216,8 +216,8 @@ async function generateRecommendationFromOpportunity(opportunity) {
   };
 }
 
-async function runRevenueAgent() {
-  const opportunity = await getRevenueOpportunity();
+async function runRevenueAgent(auth) {
+  const opportunity = await getRevenueOpportunity({ auth });
 
   if (!opportunity) {
     throw new Error('No valid revenue opportunity was found');

@@ -1,8 +1,8 @@
 const { getRevenueOpportunity } = require('./revenueOpportunity');
 const { generateRecommendationFromOpportunity } = require('../agent/revenueAgent');
 
-async function getOpportunityRecommendation() {
-  const opportunity = await getRevenueOpportunity();
+async function getOpportunityRecommendation(auth) {
+  const opportunity = await getRevenueOpportunity({ auth });
 
   if (!opportunity) {
     return {

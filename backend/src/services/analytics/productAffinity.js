@@ -1,5 +1,6 @@
 const Product = require('../../models/Product');
 const Order = require('../../models/Order');
+const { ownershipFilter } = require('../../utils/ownership');
 
 const MIN_BASE_CUSTOMERS = 20;
 
@@ -17,7 +18,7 @@ function sortPairResults(results) {
   });
 }
 
-async function getProductAffinity({ minBaseCustomers = MIN_BASE_CUSTOMERS } = {}) {
+async function getProductAffinity({ minBaseCustomers = MIN_BASE_CUSTOMERS, auth } = {}) {
   if (!Number.isInteger(minBaseCustomers) || minBaseCustomers < 0) {
     throw new Error('minBaseCustomers must be a non-negative integer');
   }
@@ -25,6 +26,7 @@ async function getProductAffinity({ minBaseCustomers = MIN_BASE_CUSTOMERS } = {}
   const productCustomers = await Order.aggregate([
     {
       $match: {
+        ...ownershipFilter(auth),
         source: 'historical',
         status: 'completed',
       },
@@ -46,7 +48,7 @@ async function getProductAffinity({ minBaseCustomers = MIN_BASE_CUSTOMERS } = {}
     customerSetsByProduct.set(productId, new Set(row.customerIds.map((customerId) => String(customerId))));
   }
 
-  const productDocs = await Product.find({}, { _id: 1 }).lean();
+  const productDocs = await Product.find({ ...ownershipFilter(auth) }, { _id: 1 }).lean();
   const productIds = productDocs.map((product) => String(product._id));
 
   const pairResults = [];

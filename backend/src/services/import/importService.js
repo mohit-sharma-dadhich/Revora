@@ -260,6 +260,7 @@ async function importMerchantData({ customerFile, productFile, orderFile, auth }
 
   // Import products
   const productsToInsert = productRecords.map((row) => ({
+    ...ownershipFields(auth),
     name: row.name.trim(),
     category: row.category.trim(),
     price: Number(row.price),

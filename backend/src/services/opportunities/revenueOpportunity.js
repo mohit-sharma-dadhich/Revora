@@ -1,5 +1,6 @@
 const { getProductAffinity, MIN_BASE_CUSTOMERS } = require('../analytics/productAffinity');
 const Product = require('../../models/Product');
+const { ownershipFilter } = require('../../utils/ownership');
 
 const DEFAULT_MIN_AFFINITY = 0.65;
 
@@ -34,6 +35,7 @@ function calculateOpportunityScore({ affinity, baseCustomerCount }) {
 async function getRevenueOpportunity({
   minAffinity = DEFAULT_MIN_AFFINITY,
   minBaseCustomers = MIN_BASE_CUSTOMERS,
+  auth,
 } = {}) {
   if (!Number.isFinite(minAffinity) || minAffinity < 0 || minAffinity > 1) {
     throw new Error('minAffinity must be a number between 0 and 1');
@@ -43,7 +45,7 @@ async function getRevenueOpportunity({
     throw new Error('minBaseCustomers must be a non-negative integer');
   }
 
-  const affinityResults = await getProductAffinity({ minBaseCustomers });
+  const affinityResults = await getProductAffinity({ minBaseCustomers, auth });
 
   const validOpportunities = affinityResults
     .filter((row) => row.affinity >= minAffinity)
@@ -82,6 +84,7 @@ async function getRevenueOpportunity({
 
   const opportunity = validOpportunities[0];
   const products = await Product.find({
+    ...ownershipFilter(auth),
     _id: { $in: [opportunity.baseProductId, opportunity.relatedProductId] },
   }, { name: 1 }).lean();
   const productNames = new Map(products.map((product) => [product._id.toString(), product.name]));
