@@ -6,6 +6,7 @@ import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardHeader } from '../components/ui/card'
 import { Skeleton } from '../components/ui/skeleton'
+import { AgentProgressPanel } from '../components/AgentProgressPanel'
 import { useOpportunity, useOpportunityList, useOpportunityRecommendation, useProposeExperiment } from '../lib/apiHooks'
 
 function formatPercent(value: number) {
@@ -34,7 +35,15 @@ export function OpportunityPage() {
   const opportunity = data?.opportunity
   const recommendation = data?.recommendation
 
-  if (query.isLoading) return <OpportunitySkeleton />
+  if (query.isLoading) {
+    return (
+      <div className="space-y-5">
+        <AgentProgressPanel runType="opportunity_discovery" isActive={query.isLoading} />
+        <OpportunitySkeleton />
+      </div>
+    )
+  }
+
   if (query.isError) return <Card className="border-red-500/20"><CardContent className="p-6"><p className="text-sm text-red-300">Unable to load opportunity</p><p className="mt-2 text-sm text-muted">{query.error.message}</p></CardContent></Card>
   if (!opportunity) return <EmptyOpportunity />
 
