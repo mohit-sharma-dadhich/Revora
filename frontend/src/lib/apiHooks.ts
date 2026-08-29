@@ -7,6 +7,7 @@ import {
 import {
   completeExperiment,
   createPaymentOrder,
+  getAuditLog,
   getExperiment,
   getOpportunities,
   proposeExperiment,
@@ -14,6 +15,7 @@ import {
   verifyPayment,
 } from './api'
 import type {
+  AuditLogResponseData,
   CreatePaymentOrderRequest,
   CreatePaymentOrderResponseData,
   Experiment,
@@ -54,4 +56,15 @@ export function useCreatePaymentOrder(): UseMutationResult<CreatePaymentOrderRes
 
 export function useVerifyPayment(): UseMutationResult<PaymentResponseData, Error, VerifyPaymentRequest> {
   return useMutation({ mutationFn: verifyPayment })
+}
+
+interface GetAuditLogParams {
+  limit?: number
+  skip?: number
+  action?: string
+  status?: string
+}
+
+export function useAuditLog(params?: GetAuditLogParams): UseQueryResult<AuditLogResponseData> {
+  return useQuery({ queryKey: ['audit', params], queryFn: () => getAuditLog(params) })
 }

@@ -193,3 +193,20 @@ export interface AuthSession {
   expiresAt: string
   user: AuthUser | null
 }
+
+export interface AuditLogEntry {
+  id: string
+  timestamp: string
+  actor: string
+  action: string
+  status: 'SUCCESS' | 'FAILED' | 'BLOCKED' | 'PENDING'
+  reason: string | null
+  metadata: Record<string, unknown>
+}
+
+export interface AuditLogResponseData {
+  entries: AuditLogEntry[]
+  total: number
+  limit: number
+  skip: number
+}

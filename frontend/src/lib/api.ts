@@ -2,6 +2,7 @@ import type {
   ApiErrorResponse,
   AuthSession,
   ApiResponse,
+  AuditLogResponseData,
   CreatePaymentOrderRequest,
   CreatePaymentOrderResponseData,
   Experiment,
@@ -134,4 +135,27 @@ export function createPaymentOrder(payload: CreatePaymentOrderRequest): Promise<
 
 export function verifyPayment(payload: VerifyPaymentRequest): Promise<PaymentResponseData> {
   return request<PaymentResponseData>('/payments/verify', { method: 'POST', body: JSON.stringify(payload) })
+}
+
+interface GetAuditLogParams {
+  limit?: number
+  skip?: number
+  action?: string
+  status?: string
+}
+
+function auditQueryString(params?: GetAuditLogParams): string {
+  if (!params) return ''
+
+  const search = new URLSearchParams()
+  if (params.limit !== undefined) search.set('limit', String(params.limit))
+  if (params.skip !== undefined) search.set('skip', String(params.skip))
+  if (params.action !== undefined) search.set('action', params.action)
+  if (params.status !== undefined) search.set('status', params.status)
+  const value = search.toString()
+  return value ? `?${value}` : ''
+}
+
+export function getAuditLog(params?: GetAuditLogParams): Promise<AuditLogResponseData> {
+  return request<AuditLogResponseData>(`/audit${auditQueryString(params)}`)
 }
