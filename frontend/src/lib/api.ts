@@ -6,6 +6,7 @@ import type {
   CreatePaymentOrderRequest,
   CreatePaymentOrderResponseData,
   Experiment,
+  ImportResult,
   OpportunityResponseData,
   PaymentResponseData,
   ProposeExperimentParams,
@@ -158,4 +159,48 @@ function auditQueryString(params?: GetAuditLogParams): string {
 
 export function getAuditLog(params?: GetAuditLogParams): Promise<AuditLogResponseData> {
   return request<AuditLogResponseData>(`/audit${auditQueryString(params)}`)
+}
+
+export function importMerchantData(files: FormData): Promise<ImportResult> {
+  return fetch(`${getApiBaseUrl()}/data/import`, {
+    method: 'POST',
+    headers: {
+      ...(localStorage.getItem('revora_session_token')
+        ? { Authorization: `Bearer ${localStorage.getItem('revora_session_token')}` }
+        : {}),
+    },
+    body: files,
+  })
+    .then(async (response) => {
+      const text = await response.text()
+      let body: unknown
+      try {
+        body = text ? JSON.parse(text) : null
+      } catch {
+        body = text
+      }
+
+      if (!response.ok) {
+        const errorMessage =
+          body && typeof body === 'object' && 'error' in body && typeof body.error === 'string'
+            ? body.error
+            : response.statusText || 'Request failed'
+        throw new ApiError(errorMessage, response.status, body)
+      }
+
+      if (!body || typeof body !== 'object' || !('success' in body)) {
+        throw new ApiError('Backend returned an invalid response envelope', response.status, body)
+      }
+
+      if (!(body as { success: boolean }).success) {
+        const errorBody = body as Partial<ApiErrorResponse>
+        throw new ApiError(
+          typeof errorBody.error === 'string' ? errorBody.error : 'Request failed',
+          response.status,
+          body
+        )
+      }
+
+      return (body as ApiResponse<ImportResult>).data
+    })
 }

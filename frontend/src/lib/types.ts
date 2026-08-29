@@ -210,3 +210,10 @@ export interface AuditLogResponseData {
   limit: number
   skip: number
 }
+
+export interface ImportResult {
+  customersImported: number
+  productsImported: number
+  ordersImported: number
+  errors: string[]
+}

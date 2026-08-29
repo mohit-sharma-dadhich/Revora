@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { BarChart3, BrainCircuit, ChevronLeft, CircleDollarSign, ClipboardList, FlaskConical, Gauge, GitBranch, Lightbulb, Menu, Network, Scale, Settings2, Sparkles, X } from 'lucide-react'
+import { BarChart3, BrainCircuit, ChevronLeft, CircleDollarSign, ClipboardList, FlaskConical, Gauge, GitBranch, Lightbulb, Menu, Network, Scale, Settings2, Sparkles, Upload, X } from 'lucide-react'
 import { Component, useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { Button } from './components/ui/button'
@@ -10,12 +10,14 @@ import { createTestSession, signIn, signUp } from './lib/api'
 import type { AuthSession } from './lib/types'
 import { AuditPage } from './pages/AuditPage'
 import { ExperimentPage } from './pages/ExperimentPage'
+import { OnboardingPage } from './pages/OnboardingPage'
 import { OpportunityPage } from './pages/OpportunityPage'
 import { ResultsPage } from './pages/ResultsPage'
 import { ProfilePage } from './pages/ProfilePage'
 
 const navigation = [
   { label: 'Overview', to: '/', icon: Gauge },
+  { label: 'Onboarding', to: '/onboarding', icon: Upload },
   { label: 'Opportunity', to: '/opportunity', icon: Lightbulb },
   { label: 'Experiment', to: '/experiment', icon: FlaskConical },
   { label: 'Results', to: '/results', icon: BarChart3 },
@@ -162,7 +164,7 @@ function App() {
     setSession(null)
   }
   const current = navigation.find((item) => item.to === location.pathname) ?? navigation[0]
-  return <div className="min-h-screen bg-canvas text-slate-100"><Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} onProfile={() => { setSidebarOpen(false); navigate('/profile') }} /><main className="min-h-screen lg:pl-[248px]"><header className="flex h-[72px] items-center justify-between border-b border-line px-5 sm:px-8 lg:px-12"><div className="flex items-center gap-3"><Button variant="ghost" className="size-9 p-0 lg:hidden" onClick={() => setSidebarOpen(true)} aria-label="Open navigation"><Menu size={19} /></Button><span className="text-sm text-muted">{current.label}</span></div><div className="flex items-center gap-3"><span className="hidden text-xs text-[#626873] sm:inline">Last synced just now</span><div className="size-2 rounded-full bg-emerald shadow-[0_0_12px_rgba(16,185,129,0.8)]" /></div></header><div className="px-5 py-10 sm:px-8 sm:py-14 lg:px-12"><AppErrorBoundary><Routes><Route path="/" element={<OverviewPage />} /><Route path="/opportunity" element={<OpportunityPage />} /><Route path="/experiment" element={<ExperimentPage />} /><Route path="/experiment/:id" element={<ExperimentPage />} /><Route path="/experiments/:experimentId" element={<ExperimentPage />} /><Route path="/results" element={<ResultsPage />} /><Route path="/results/:experimentId" element={<ResultsPage />} /><Route path="/audit" element={<AuditPage />} /><Route path="/profile" element={<ProfilePage session={session} onLogout={handleLogout} />} /></Routes></AppErrorBoundary></div></main></div>
+  return <div className="min-h-screen bg-canvas text-slate-100"><Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} onProfile={() => { setSidebarOpen(false); navigate('/profile') }} /><main className="min-h-screen lg:pl-[248px]"><header className="flex h-[72px] items-center justify-between border-b border-line px-5 sm:px-8 lg:px-12"><div className="flex items-center gap-3"><Button variant="ghost" className="size-9 p-0 lg:hidden" onClick={() => setSidebarOpen(true)} aria-label="Open navigation"><Menu size={19} /></Button><span className="text-sm text-muted">{current.label}</span></div><div className="flex items-center gap-3"><span className="hidden text-xs text-[#626873] sm:inline">Last synced just now</span><div className="size-2 rounded-full bg-emerald shadow-[0_0_12px_rgba(16,185,129,0.8)]" /></div></header><div className="px-5 py-10 sm:px-8 sm:py-14 lg:px-12"><AppErrorBoundary><Routes><Route path="/" element={<OverviewPage />} /><Route path="/onboarding" element={<OnboardingPage />} /><Route path="/opportunity" element={<OpportunityPage />} /><Route path="/experiment" element={<ExperimentPage />} /><Route path="/experiment/:id" element={<ExperimentPage />} /><Route path="/experiments/:experimentId" element={<ExperimentPage />} /><Route path="/results" element={<ResultsPage />} /><Route path="/results/:experimentId" element={<ResultsPage />} /><Route path="/audit" element={<AuditPage />} /><Route path="/profile" element={<ProfilePage session={session} onLogout={handleLogout} />} /></Routes></AppErrorBoundary></div></main></div>
 }
 
 export default App

@@ -10,6 +10,7 @@ import {
   getAuditLog,
   getExperiment,
   getOpportunities,
+  importMerchantData,
   proposeExperiment,
   startExperiment,
   verifyPayment,
@@ -19,6 +20,7 @@ import type {
   CreatePaymentOrderRequest,
   CreatePaymentOrderResponseData,
   Experiment,
+  ImportResult,
   OpportunityResponseData,
   PaymentResponseData,
   ProposeExperimentParams,
@@ -67,4 +69,8 @@ interface GetAuditLogParams {
 
 export function useAuditLog(params?: GetAuditLogParams): UseQueryResult<AuditLogResponseData> {
   return useQuery({ queryKey: ['audit', params], queryFn: () => getAuditLog(params) })
+}
+
+export function useImportMerchantData(): UseMutationResult<ImportResult, Error, FormData> {
+  return useMutation({ mutationFn: importMerchantData })
 }

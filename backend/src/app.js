@@ -17,6 +17,7 @@ const experimentLifecycleRoutes = require('./routes/experimentLifecycleRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const authRoutes = require('./routes/authRoutes');
 const auditRoutes = require('./routes/auditRoutes');
+const importRoutes = require('./routes/importRoutes');
 const { attachAuth, requireAuth } = require('./middleware/auth');
 
 // Razorpay webhook verification requires the exact raw bytes from the request body,
@@ -33,5 +34,6 @@ app.use('/api', experimentRoutes);
 app.use('/api', experimentLifecycleRoutes);
 app.use('/api', paymentRoutes);
 app.use('/api', auditRoutes);
+app.use('/api', importRoutes);
 
 module.exports = app;
