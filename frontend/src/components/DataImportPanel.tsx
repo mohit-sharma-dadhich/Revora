@@ -16,7 +16,7 @@ interface DataImportPanelProps {
 }
 
 const MIN_FILE_SIZE = 1; // 1 KB
-const MAX_FILE_SIZE = 10 * 1024; // 10 MB in KB
+const MAX_FILE_SIZE = 5 * 1024; // 5 MB in KB
 
 const CSV_EXAMPLES = {
   customers: `externalId,name,email,segment
@@ -116,7 +116,7 @@ export function DataImportPanel({ onImport, isLoading = false, onSuccess }: Data
           <Upload size={17} className="text-emerald" />
           <div>
             <p className="text-sm font-medium text-white">Upload merchant data</p>
-            <p className="mt-1 text-xs text-muted">Import customers, products, and orders from CSV files. Each file must be between 1 KB and 10 MB.</p>
+            <p className="mt-1 text-xs text-muted">Import customers, products, and orders from CSV files. Each file must be between 1 KB and 5 MB.</p>
           </div>
         </div>
       </CardHeader>

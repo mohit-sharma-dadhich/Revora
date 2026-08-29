@@ -8,7 +8,7 @@ const Order = require('../../models/Order');
 const AuditLog = require('../../models/AuditLog');
 
 const MIN_FILE_SIZE = 1 * 1024; // 1 KB
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 
 function validateFileSize(fileBuffer) {
   const sizeInKB = fileBuffer.length / 1024;
