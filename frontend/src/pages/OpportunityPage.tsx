@@ -35,7 +35,7 @@ export function OpportunityPage() {
   const opportunity = data?.opportunity
   const recommendation = data?.recommendation
 
-  if (query.isLoading) {
+  if (query.isLoading || (query.isFetching && !opportunity)) {
     return (
       <div className="space-y-5">
         <AgentProgressPanel runType="opportunity_discovery" isActive={query.isLoading || query.isFetching} />
