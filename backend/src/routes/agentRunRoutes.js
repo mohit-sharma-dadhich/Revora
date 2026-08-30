@@ -3,7 +3,7 @@ const { getAgentRun, getLatestAgentRun } = require('../controllers/agentRunContr
 
 const router = express.Router();
 
-router.get('/agent-runs/:id', getAgentRun);
 router.get('/agent-runs/latest', getLatestAgentRun);
+router.get('/agent-runs/:id', getAgentRun);
 
 module.exports = router;

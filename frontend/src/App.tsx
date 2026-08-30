@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion'
 import { BarChart3, BrainCircuit, ChevronLeft, CircleDollarSign, ClipboardList, FlaskConical, Gauge, GitBranch, Lightbulb, Menu, Network, Scale, Settings2, Sparkles, Upload, X } from 'lucide-react'
-import { Component, useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { Component, useState, type FormEvent, type ReactNode } from 'react'
 import { NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { Button } from './components/ui/button'
 import { Card, CardContent } from './components/ui/card'
@@ -147,16 +147,24 @@ function AuthScreen({ onAuthenticated }: { onAuthenticated: (session: AuthSessio
 
 function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [session, setSession] = useState<AuthSession | null>(() => JSON.parse(localStorage.getItem('revora_session') || 'null'))
+  const [session, setSession] = useState<AuthSession | null>(() => {
+    const rawSession = localStorage.getItem('revora_session')
+    if (!rawSession) return null
+
+    try {
+      const parsedSession = JSON.parse(rawSession) as AuthSession | null
+      if (parsedSession?.mode === 'test' && new Date(parsedSession.expiresAt) <= new Date()) {
+        localStorage.removeItem('revora_session_token')
+        localStorage.removeItem('revora_session')
+        return null
+      }
+      return parsedSession
+    } catch {
+      return null
+    }
+  })
   const location = useLocation()
   const navigate = useNavigate()
-  useEffect(() => {
-    if (session?.mode === 'test' && new Date(session.expiresAt) <= new Date()) {
-      localStorage.removeItem('revora_session_token')
-      localStorage.removeItem('revora_session')
-      setSession(null)
-    }
-  }, [session])
   if (!session) return <AuthScreen onAuthenticated={setSession} />
   const handleLogout = () => {
     localStorage.removeItem('revora_session_token')
