@@ -2,18 +2,25 @@ const express = require('express');
 const cors = require('cors');
 
 const app = express();
-const allowedOrigins = new Set([
-	process.env.FRONTEND_URL,
-	'http://localhost:5173',
-	'http://localhost:5174',
-].filter(Boolean));
+const allowedOrigins = new Set(
+	[
+		process.env.FRONTEND_URL,
+		'http://localhost:5173',
+		'http://localhost:5174',
+	].filter(Boolean).map((value) => String(value).replace(/\/$/, ''))
+);
+
+function normalizeOrigin(value) {
+	return String(value || '').replace(/\/$/, '');
+}
 
 function isAllowedOrigin(origin) {
-	if (!origin) return true;
-	if (allowedOrigins.has(origin)) return true;
-	return /^https?:\/\/localhost(?::\d+)?$/.test(origin)
-		|| /^https:\/\/[-a-z0-9]+\.pages\.dev$/i.test(origin)
-		|| /^https:\/\/[-a-z0-9]+\.workers\.dev$/i.test(origin);
+	const normalizedOrigin = normalizeOrigin(origin);
+	if (!normalizedOrigin) return true;
+	if (allowedOrigins.has(normalizedOrigin)) return true;
+	return /^https?:\/\/localhost(?::\d+)?$/.test(normalizedOrigin)
+		|| /^https:\/\/[-a-z0-9]+\.pages\.dev$/i.test(normalizedOrigin)
+		|| /^https:\/\/[-a-z0-9]+\.workers\.dev$/i.test(normalizedOrigin);
 }
 
 app.use(cors({
