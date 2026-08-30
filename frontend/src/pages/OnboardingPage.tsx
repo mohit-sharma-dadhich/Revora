@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardHeader } from '../components/ui/card'
 import { DataImportPanel } from '../components/DataImportPanel'
+import { createTestSession } from '../lib/api'
 import { useImportMerchantData } from '../lib/apiHooks'
 
 export function OnboardingPage() {
@@ -14,6 +15,17 @@ export function OnboardingPage() {
 
   async function handleImport(files: FormData) {
     return importMutation.mutateAsync(files)
+  }
+
+  async function handleUseDemoData() {
+    try {
+      const session = await createTestSession()
+      localStorage.setItem('revora_session_token', session.token)
+      localStorage.setItem('revora_session', JSON.stringify(session))
+      window.location.assign('/opportunity')
+    } catch (error) {
+      console.error('Unable to initialize demo session:', error)
+    }
   }
 
   return (
@@ -117,7 +129,7 @@ export function OnboardingPage() {
           <Button
             variant="outline"
             className="mt-4"
-            onClick={() => navigate('/opportunity')}
+            onClick={handleUseDemoData}
           >
             Use demo data
           </Button>

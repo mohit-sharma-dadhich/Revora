@@ -3,11 +3,15 @@ const assert = require('node:assert/strict');
 
 const { auditOwnershipFilter, ownershipFilter, ownershipFields, resolveOwnershipScope } = require('./ownership');
 
-test('test-mode ownership filter is scoped to the current session only', () => {
+test('test-mode ownership filter keeps the current session and the shared demo dataset', () => {
   const filter = ownershipFilter({ mode: 'test', sessionId: 'session-123' });
 
   assert.deepEqual(filter, {
-    sessionId: 'session-123',
+    $or: [
+      { sessionId: 'session-123' },
+      { sessionId: { $exists: false } },
+      { $and: [{ sessionId: null }, { ownerId: null }] },
+    ],
   });
 });
 

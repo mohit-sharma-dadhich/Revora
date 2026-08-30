@@ -3,7 +3,11 @@ function ownershipFilter(auth) {
 
   if (auth.mode === 'test') {
     return {
-      sessionId: auth.sessionId,
+      $or: [
+        { sessionId: auth.sessionId },
+        { sessionId: { $exists: false } },
+        { $and: [{ sessionId: null }, { ownerId: null }] },
+      ],
     };
   }
 

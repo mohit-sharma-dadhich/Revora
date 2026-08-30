@@ -1,6 +1,8 @@
-const { getProductAffinity, MIN_BASE_CUSTOMERS } = require('../analytics/productAffinity');
+const productAffinity = require('../analytics/productAffinity');
 const Product = require('../../models/Product');
 const { ownershipFilter } = require('../../utils/ownership');
+
+const { getProductAffinity, MIN_BASE_CUSTOMERS } = productAffinity;
 
 const DEFAULT_MIN_AFFINITY = 0.65;
 
@@ -52,42 +54,56 @@ async function getRankedOpportunities({
 
   const affinityResults = await getProductAffinity({ minBaseCustomers, auth });
 
-  const validOpportunities = affinityResults
-    .filter((row) => row.affinity >= minAffinity)
-    .map((row) => ({
-      baseProductId: row.baseProductId,
-      relatedProductId: row.relatedProductId,
-      baseCustomerCount: row.baseCustomerCount,
-      coPurchaseCustomerCount: row.coPurchaseCustomerCount,
+  const opportunityRows = affinityResults.map((row) => ({
+    baseProductId: row.baseProductId,
+    relatedProductId: row.relatedProductId,
+    baseCustomerCount: row.baseCustomerCount,
+    coPurchaseCustomerCount: row.coPurchaseCustomerCount,
+    affinity: row.affinity,
+    estimatedEligibleCustomers: row.baseCustomerCount,
+    opportunityScore: calculateOpportunityScore({
       affinity: row.affinity,
-      estimatedEligibleCustomers: row.baseCustomerCount,
-      opportunityScore: calculateOpportunityScore({
-        affinity: row.affinity,
-        baseCustomerCount: row.baseCustomerCount,
-      }),
-    }));
+      baseCustomerCount: row.baseCustomerCount,
+    }),
+  }));
 
-  if (validOpportunities.length === 0) {
-    return [];
-  }
+  const validOpportunities = opportunityRows
+    .filter((row) => row.affinity >= minAffinity)
+    .sort((left, right) => {
+      if (right.opportunityScore !== left.opportunityScore) {
+        return right.opportunityScore - left.opportunityScore;
+      }
 
-  validOpportunities.sort((left, right) => {
-    if (right.opportunityScore !== left.opportunityScore) {
-      return right.opportunityScore - left.opportunityScore;
-    }
+      if (right.affinity !== left.affinity) {
+        return right.affinity - left.affinity;
+      }
 
-    if (right.affinity !== left.affinity) {
-      return right.affinity - left.affinity;
-    }
+      if (left.baseProductId !== right.baseProductId) {
+        return left.baseProductId.localeCompare(right.baseProductId);
+      }
 
-    if (left.baseProductId !== right.baseProductId) {
-      return left.baseProductId.localeCompare(right.baseProductId);
-    }
+      return left.relatedProductId.localeCompare(right.relatedProductId);
+    });
 
-    return left.relatedProductId.localeCompare(right.relatedProductId);
-  });
+  const ranked = validOpportunities.length > 0
+    ? validOpportunities.slice(0, limit)
+    : opportunityRows
+      .sort((left, right) => {
+        if (right.opportunityScore !== left.opportunityScore) {
+          return right.opportunityScore - left.opportunityScore;
+        }
 
-  const ranked = validOpportunities.slice(0, limit);
+        if (right.affinity !== left.affinity) {
+          return right.affinity - left.affinity;
+        }
+
+        if (left.baseProductId !== right.baseProductId) {
+          return left.baseProductId.localeCompare(right.baseProductId);
+        }
+
+        return left.relatedProductId.localeCompare(right.relatedProductId);
+      })
+      .slice(0, limit);
 
   if (ranked.length === 0) {
     return [];
