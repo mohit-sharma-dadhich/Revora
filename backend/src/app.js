@@ -3,11 +3,25 @@ const cors = require('cors');
 
 const app = express();
 const allowedOrigins = new Set([
-	process.env.FRONTEND_URL || 'http://localhost:5173',
+	process.env.FRONTEND_URL,
 	'http://localhost:5173',
 	'http://localhost:5174',
-]);
-app.use(cors({ origin: (origin, callback) => callback(null, !origin || allowedOrigins.has(origin)) }));
+].filter(Boolean));
+
+function isAllowedOrigin(origin) {
+	if (!origin) return true;
+	if (allowedOrigins.has(origin)) return true;
+	return /^https?:\/\/localhost(?::\d+)?$/.test(origin)
+		|| /^https:\/\/[-a-z0-9]+\.pages\.dev$/i.test(origin)
+		|| /^https:\/\/[-a-z0-9]+\.workers\.dev$/i.test(origin);
+}
+
+app.use(cors({
+	origin: (origin, callback) => callback(null, isAllowedOrigin(origin)),
+	credentials: true,
+	methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+	allowedHeaders: ['Content-Type', 'Authorization'],
+}));
 
 const webhookRoutes = require('./routes/webhookRoutes');
 const healthRoutes = require('./routes/healthRoutes');
