@@ -20,6 +20,21 @@ function ownershipFilter(auth) {
   };
 }
 
+function ownershipFields(auth) {
+  if (!auth) return {};
+
+  if (auth.mode === 'test') {
+    return {
+      sessionId: auth.sessionId,
+      expiresAt: auth.expiresAt,
+    };
+  }
+
+  return {
+    ownerId: auth.user.id,
+  };
+}
+
 function scopedReadFilter(auth) {
   const baseline = { ownerId: null, sessionId: null };
   if (!auth) return baseline;
@@ -28,5 +43,6 @@ function scopedReadFilter(auth) {
 
 module.exports = {
   ownershipFilter,
+  ownershipFields,
   scopedReadFilter,
 };

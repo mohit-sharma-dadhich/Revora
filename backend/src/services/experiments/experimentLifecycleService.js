@@ -3,7 +3,7 @@ const Order = require('../../models/Order');
 const AuditLog = require('../../models/AuditLog');
 const { measureExperiment } = require('../measurement/measurementService');
 const { decideOutcome } = require('./decisionService');
-const { ownershipFilter } = require('../../utils/ownership');
+const { ownershipFields, ownershipFilter } = require('../../utils/ownership');
 
 const PRE_RUNNING_STATUSES = new Set(['draft', 'pending']);
 
@@ -38,7 +38,7 @@ async function logLifecycleEvent({ action, status = 'SUCCESS', reason, experimen
       experimentId,
       ...metadata,
     },
-    ...(auth ? { ...ownershipFilter(auth), expiresAt: auth.mode === 'test' ? auth.expiresAt : null } : {}),
+    ...(auth ? { ...ownershipFields(auth), expiresAt: auth.mode === 'test' ? auth.expiresAt : null } : {}),
   });
 }
 
@@ -111,6 +111,7 @@ async function startExperiment(experimentId, auth) {
         previousStatus: currentStatus,
         attemptedTransition: 'running',
       },
+      auth,
     });
 
     throw new Error(message);
@@ -167,6 +168,7 @@ async function completeExperiment(experimentId, auth) {
         previousStatus: experiment.status,
         attemptedTransition: 'completed',
       },
+      auth,
     });
 
     throw new Error(message);
@@ -250,6 +252,7 @@ async function completeExperimentWithMeasurement(experimentId, options = {}, aut
       decision: outcome.decision,
       incrementalRevenue: measurement.incremental.incrementalRevenuePerEligibleCustomer,
     },
+    auth,
   });
 
   return normalizeExperiment(experiment.toObject());

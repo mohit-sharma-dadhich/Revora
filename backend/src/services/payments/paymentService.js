@@ -6,7 +6,7 @@ const Product = require('../../models/Product');
 const Experiment = require('../../models/Experiment');
 const AuditLog = require('../../models/AuditLog');
 const { createRazorpayService } = require('../razorpay/razorpayService');
-const { ownershipFilter } = require('../../utils/ownership');
+const { ownershipFields, ownershipFilter } = require('../../utils/ownership');
 
 function isObjectIdLike(value) {
   return typeof value === 'string' && value.trim().length > 0;
@@ -124,7 +124,7 @@ async function createExperimentOrder({ experimentId, customerId, auth }) {
     : baseProduct.price + targetProduct.price;
 
   const orderDocument = await Order.create({
-    ...(auth ? { ...ownershipFilter(auth), expiresAt: auth.mode === 'test' ? auth.expiresAt : null } : {}),
+    ...(auth ? { ...ownershipFields(auth), expiresAt: auth.mode === 'test' ? auth.expiresAt : null } : {}),
     customerId,
     productIds,
     amount,

@@ -38,7 +38,7 @@ export function OpportunityPage() {
   if (query.isLoading) {
     return (
       <div className="space-y-5">
-        <AgentProgressPanel runType="opportunity_discovery" isActive={query.isLoading} />
+        <AgentProgressPanel runType="opportunity_discovery" isActive={query.isLoading || query.isFetching} />
         <OpportunitySkeleton />
       </div>
     )

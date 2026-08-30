@@ -7,7 +7,7 @@ const Customer = require('../../models/Customer');
 const Product = require('../../models/Product');
 const Order = require('../../models/Order');
 const { getRevenueOpportunity } = require('../opportunities/revenueOpportunity');
-const { ownershipFilter } = require('../../utils/ownership');
+const { ownershipFields, ownershipFilter } = require('../../utils/ownership');
 
 const DEFAULT_MIN_ELIGIBLE_AUDIENCE = 20;
 const DEFAULT_MAX_EXPOSURE_PERCENT = 0.2;
@@ -68,7 +68,7 @@ async function logAudit({ actor, action, status, reason, metadata, auth }) {
     status,
     reason: reason || null,
     metadata: metadata || {},
-    ...(auth ? { ...ownershipFilter(auth), expiresAt: auth.mode === 'test' ? auth.expiresAt : null } : {}),
+    ...(auth ? { ...ownershipFields(auth), expiresAt: auth.mode === 'test' ? auth.expiresAt : null } : {}),
   });
 }
 
@@ -333,7 +333,7 @@ async function proposeExperiment({ opportunity, minEligibleAudience = DEFAULT_MI
   };
 
   const experiment = await Experiment.create({
-    ...(auth ? { ...ownershipFilter(auth), expiresAt: auth.mode === 'test' ? auth.expiresAt : null } : {}),
+    ...(auth ? { ...ownershipFields(auth), expiresAt: auth.mode === 'test' ? auth.expiresAt : null } : {}),
     strategy,
     baseProductId: opportunity.baseProductId,
     targetProductId: opportunity.relatedProductId,
