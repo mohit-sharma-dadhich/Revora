@@ -26,6 +26,10 @@ const { attachAuth, requireAuth } = require('./middleware/auth');
 app.use('/api', webhookRoutes);
 app.use(express.json());
 app.use(attachAuth);
+app.use('/api', (req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store, private');
+  next();
+});
 
 app.use('/api', healthRoutes);
 app.use('/api', authRoutes);
