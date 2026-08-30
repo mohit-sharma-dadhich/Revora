@@ -225,11 +225,6 @@ async function importMerchantData({ customerFile, productFile, orderFile, auth }
 
   const scope = ownershipFields(auth);
 
-  const existingCustomerEmails = new Set(
-    (await Customer.find({ ...scope, email: { $in: customerRecords.map((row) => row.email.trim().toLowerCase()) } }, { email: 1 }).lean())
-      .map((doc) => doc.email)
-  );
-
   // Validate file sizes
   validateFileSize(customerFile.buffer);
   validateFileSize(productFile.buffer);
@@ -244,6 +239,13 @@ async function importMerchantData({ customerFile, productFile, orderFile, auth }
   const customerExternalIds = await validateCustomersCSV(customerRecords);
   const productExternalIds = await validateProductsCSV(productRecords);
   await validateOrdersCSV(orderRecords, customerExternalIds, productExternalIds);
+
+  const existingCustomerEmails = new Set(
+    (await Customer.find(
+      { ...scope, email: { $in: customerRecords.map((row) => row.email.trim().toLowerCase()) } },
+      { email: 1 }
+    ).lean()).map((doc) => doc.email)
+  );
 
   const customerMap = new Map();
   const productMap = new Map();
