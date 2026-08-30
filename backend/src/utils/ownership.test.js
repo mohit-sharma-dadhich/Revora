@@ -3,27 +3,19 @@ const assert = require('node:assert/strict');
 
 const { auditOwnershipFilter, ownershipFilter, ownershipFields, resolveOwnershipScope } = require('./ownership');
 
-test('test-mode ownership filter includes current session and unscoped records', () => {
+test('test-mode ownership filter is scoped to the current session only', () => {
   const filter = ownershipFilter({ mode: 'test', sessionId: 'session-123' });
 
   assert.deepEqual(filter, {
-    $or: [
-      { sessionId: 'session-123' },
-      { sessionId: null },
-      { sessionId: { $exists: false } },
-    ],
+    sessionId: 'session-123',
   });
 });
 
-test('live-mode ownership filter includes current user and unscoped records', () => {
+test('live-mode ownership filter is scoped to the current user only', () => {
   const filter = ownershipFilter({ mode: 'live', user: { id: 'user-42' } });
 
   assert.deepEqual(filter, {
-    $or: [
-      { ownerId: 'user-42' },
-      { ownerId: null },
-      { ownerId: { $exists: false } },
-    ],
+    ownerId: 'user-42',
   });
 });
 

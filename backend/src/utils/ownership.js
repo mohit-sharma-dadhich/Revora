@@ -3,21 +3,17 @@ function ownershipFilter(auth) {
 
   if (auth.mode === 'test') {
     return {
-      $or: [
-        { sessionId: auth.sessionId },
-        { sessionId: null },
-        { sessionId: { $exists: false } },
-      ],
+      sessionId: auth.sessionId,
     };
   }
 
-  return {
-    $or: [
-      { ownerId: auth.user.id },
-      { ownerId: null },
-      { ownerId: { $exists: false } },
-    ],
-  };
+  if (auth.user && auth.user.id) {
+    return {
+      ownerId: auth.user.id,
+    };
+  }
+
+  return {};
 }
 
 function auditOwnershipFilter(auth) {
@@ -77,9 +73,9 @@ function resolveOwnershipScope(auth) {
 }
 
 function scopedReadFilter(auth) {
-  const baseline = { ownerId: null, sessionId: null };
-  if (!auth) return baseline;
-  return { $or: [baseline, ownershipFilter(auth)] };
+  if (!auth) return {};
+
+  return ownershipFilter(auth);
 }
 
 module.exports = {

@@ -38,19 +38,21 @@ async function generateUniqueAssignmentSeed() {
   return assignmentSeed;
 }
 
+function clamp(value, fallback, minimum, maximum) {
+  if (!Number.isFinite(value)) {
+    return fallback;
+  }
+
+  return Math.min(Math.max(value, minimum), maximum);
+}
+
 function normalizeOptions(options = {}) {
-  const minEligibleAudience = Number.isInteger(options.minEligibleAudience)
+  const minEligibleAudience = Number.isInteger(options.minEligibleAudience) && options.minEligibleAudience > 0
     ? options.minEligibleAudience
     : DEFAULT_MIN_ELIGIBLE_AUDIENCE;
 
-  const maxExposurePercent = Number.isFinite(options.maxExposurePercent)
-    ? options.maxExposurePercent
-    : DEFAULT_MAX_EXPOSURE_PERCENT;
-
-  const treatmentPercent = Number.isFinite(options.treatmentPercent)
-    ? options.treatmentPercent
-    : DEFAULT_TREATMENT_PERCENT;
-
+  const maxExposurePercent = clamp(Number(options.maxExposurePercent), DEFAULT_MAX_EXPOSURE_PERCENT, 0.01, 1);
+  const treatmentPercent = clamp(Number(options.treatmentPercent), DEFAULT_TREATMENT_PERCENT, 0.01, 1);
   const strategy = options.strategy || DEFAULT_STRATEGY;
 
   return {
@@ -433,6 +435,7 @@ module.exports = {
   findEligibleCustomersForProduct,
   getActiveExperimentForOpportunity,
   logAudit,
+  normalizeOptions,
   proposeExperiment,
   selectAudienceDeterministically,
 };

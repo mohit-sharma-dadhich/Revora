@@ -1,29 +1,26 @@
 const {
   proposeExperiment: proposeExperimentForOpportunity,
   createProposalFromBestOpportunity,
+  normalizeOptions,
 } = require('../services/experiments/experimentProposalService');
 
 async function proposeExperiment(req, res) {
   try {
-    const minEligibleAudience = Number(req.query.minEligibleAudience || 20);
-    const maxExposurePercent = Number(req.query.maxExposurePercent || 0.2);
-    const treatmentPercent = Number(req.query.treatmentPercent || 0.5);
-    const strategy = req.query.strategy || 'CROSS_SELL';
+    const normalizedOptions = normalizeOptions({
+      minEligibleAudience: req.query.minEligibleAudience,
+      maxExposurePercent: req.query.maxExposurePercent,
+      treatmentPercent: req.query.treatmentPercent,
+      strategy: req.query.strategy,
+    });
 
     const result = req.body && req.body.opportunity
       ? await proposeExperimentForOpportunity({
           opportunity: req.body.opportunity,
-          minEligibleAudience,
-          maxExposurePercent,
-          treatmentPercent,
-          strategy,
+          ...normalizedOptions,
           auth: req.auth,
         })
       : await createProposalFromBestOpportunity({
-          minEligibleAudience,
-          maxExposurePercent,
-          treatmentPercent,
-          strategy,
+          ...normalizedOptions,
           auth: req.auth,
         });
 

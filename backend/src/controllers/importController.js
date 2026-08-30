@@ -21,7 +21,13 @@ async function importData(req, res) {
       data: result,
     });
   } catch (error) {
-    const statusCode = error.message.includes('validation failed') || error.message.includes('is required') ? 400 : 500;
+    const statusCode = [
+      'validation failed',
+      'is required',
+      'is too small',
+      'too large',
+      'is invalid',
+    ].some((token) => error.message.includes(token)) ? 400 : 500;
 
     return res.status(statusCode).json({
       success: false,
