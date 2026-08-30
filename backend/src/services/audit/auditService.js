@@ -1,5 +1,5 @@
 const AuditLog = require('../../models/AuditLog');
-const { ownershipFilter } = require('../../utils/ownership');
+const { auditOwnershipFilter } = require('../../utils/ownership');
 
 async function listAuditLogs({ auth, limit = 50, skip = 0, action, status } = {}) {
   const maxLimit = 200;
@@ -7,7 +7,7 @@ async function listAuditLogs({ auth, limit = 50, skip = 0, action, status } = {}
   const clampedSkip = Math.max(0, Number.isInteger(skip) ? skip : 0);
 
   const filter = {
-    ...ownershipFilter(auth),
+    ...auditOwnershipFilter(auth),
     ...(action ? { action } : {}),
     ...(status ? { status } : {}),
   };

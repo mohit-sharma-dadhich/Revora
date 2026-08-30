@@ -20,6 +20,16 @@ function ownershipFilter(auth) {
   };
 }
 
+function auditOwnershipFilter(auth) {
+  if (!auth) return { _id: { $exists: false } };
+
+  if (auth.mode === 'test') {
+    return { sessionId: auth.sessionId };
+  }
+
+  return { ownerId: auth.user.id };
+}
+
 function ownershipFields(auth) {
   if (!auth) return {};
 
@@ -42,6 +52,7 @@ function scopedReadFilter(auth) {
 }
 
 module.exports = {
+  auditOwnershipFilter,
   ownershipFilter,
   ownershipFields,
   scopedReadFilter,
