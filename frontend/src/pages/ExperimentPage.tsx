@@ -78,6 +78,38 @@ export function ExperimentPage() {
   const [failedCustomers, setFailedCustomers] = useState<Record<string, boolean>>({})
   const [activeCustomer, setActiveCustomer] = useState<string | null>(null)
   const experiment = experimentQuery.data || routeState.experiment
+
+  useEffect(() => {
+    if (!experimentId) {
+      setPaidCustomers({})
+      setFailedCustomers({})
+      return
+    }
+
+    try {
+      const stored = sessionStorage.getItem(`revora.experiment.payments.${experimentId}`)
+      if (!stored) {
+        setPaidCustomers({})
+        setFailedCustomers({})
+        return
+      }
+
+      const parsed = JSON.parse(stored) as { paid?: Record<string, boolean>; failed?: Record<string, boolean> }
+      setPaidCustomers(parsed.paid || {})
+      setFailedCustomers(parsed.failed || {})
+    } catch {
+      setPaidCustomers({})
+      setFailedCustomers({})
+    }
+  }, [experimentId])
+
+  useEffect(() => {
+    if (!experimentId) return
+    sessionStorage.setItem(`revora.experiment.payments.${experimentId}`, JSON.stringify({
+      paid: paidCustomers,
+      failed: failedCustomers,
+    }))
+  }, [experimentId, paidCustomers, failedCustomers])
   const guardrails = routeState.guardrails || getStoredGuardrails(experiment)
   const proposal = routeState.proposal
 
