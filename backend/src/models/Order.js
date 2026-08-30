@@ -16,6 +16,11 @@ const orderSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    externalId: {
+      type: String,
+      default: null,
+      trim: true,
+    },
     customerId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Customer',
@@ -98,6 +103,7 @@ orderSchema.index({ customerId: 1 });
 orderSchema.index({ productIds: 1 });
 orderSchema.index({ source: 1, createdAt: -1 });
 orderSchema.index({ experimentId: 1, customerId: 1, source: 1 });
+orderSchema.index({ ownerId: 1, sessionId: 1, externalId: 1 }, { unique: true, partialFilterExpression: { externalId: { $type: 'string' } } });
 orderSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0, partialFilterExpression: { expiresAt: { $type: 'date' } } });
 
 module.exports = mongoose.model('Order', orderSchema);

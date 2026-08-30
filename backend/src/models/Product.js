@@ -16,6 +16,11 @@ const productSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    externalId: {
+      type: String,
+      default: null,
+      trim: true,
+    },
     name: {
       type: String,
       required: true,
@@ -41,6 +46,7 @@ const productSchema = new mongoose.Schema(
   }
 );
 
+productSchema.index({ ownerId: 1, sessionId: 1, externalId: 1 }, { unique: true, partialFilterExpression: { externalId: { $type: 'string' } } });
 productSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0, partialFilterExpression: { expiresAt: { $type: 'date' } } });
 
 module.exports = mongoose.model('Product', productSchema);

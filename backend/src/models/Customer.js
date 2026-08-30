@@ -16,6 +16,11 @@ const customerSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    externalId: {
+      type: String,
+      default: null,
+      trim: true,
+    },
     name: {
       type: String,
       required: true,
@@ -55,6 +60,7 @@ const customerSchema = new mongoose.Schema(
 );
 
 customerSchema.index({ ownerId: 1, sessionId: 1, email: 1 }, { unique: true });
+customerSchema.index({ ownerId: 1, sessionId: 1, externalId: 1 }, { unique: true, partialFilterExpression: { externalId: { $type: 'string' } } });
 customerSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0, partialFilterExpression: { expiresAt: { $type: 'date' } } });
 
 module.exports = mongoose.model('Customer', customerSchema);

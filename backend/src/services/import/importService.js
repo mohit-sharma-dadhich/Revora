@@ -240,22 +240,21 @@ async function importMerchantData({ customerFile, productFile, orderFile, auth }
   const productExternalIds = await validateProductsCSV(productRecords);
   await validateOrdersCSV(orderRecords, customerExternalIds, productExternalIds);
 
-  const existingCustomerEmails = new Set(
-    (await Customer.find(
-      { ...scope, email: { $in: customerRecords.map((row) => row.email.trim().toLowerCase()) } },
-      { email: 1 }
-    ).lean()).map((doc) => doc.email)
-  );
+  const findExistingByExternalId = async (Model, records) => {
+    const externalIds = records.map((row) => row.externalId);
+    const existing = await Model.find(
+      { ...scope, externalId: { $in: externalIds } },
+      { externalId: 1 }
+    ).lean();
+    return new Map(existing.map((doc) => [doc.externalId, doc._id]));
+  };
 
-  const customerMap = new Map();
-  const productMap = new Map();
-
-  const newCustomerRows = customerRecords.filter(
-    (row) => !existingCustomerEmails.has(row.email.trim().toLowerCase())
-  );
+  const existingCustomerIds = await findExistingByExternalId(Customer, customerRecords);
+  const newCustomerRows = customerRecords.filter((row) => !existingCustomerIds.has(row.externalId));
 
   const customersToInsert = newCustomerRows.map((row) => ({
     ...scope,
+    externalId: row.externalId,
     name: row.name.trim(),
     email: row.email.trim().toLowerCase(),
     segment: row.segment.trim(),
@@ -264,41 +263,37 @@ async function importMerchantData({ customerFile, productFile, orderFile, auth }
     lastPurchaseAt: null,
   }));
 
-  const createdCustomers = customersToInsert.length > 0
-    ? await Customer.insertMany(customersToInsert)
-    : [];
+  const createdCustomers = customersToInsert.length > 0 ? await Customer.insertMany(customersToInsert) : [];
+  const customerMap = new Map(existingCustomerIds);
   for (let i = 0; i < createdCustomers.length; i++) {
     customerMap.set(newCustomerRows[i].externalId, createdCustomers[i]._id);
   }
 
-  const existingCustomers = await Customer.find(
-    { ...scope, email: { $in: customerRecords.map((row) => row.email.trim().toLowerCase()) } },
-    { email: 1 }
-  ).lean();
-  const emailToId = new Map(existingCustomers.map((doc) => [doc.email, doc._id]));
-  for (const row of customerRecords) {
-    if (!customerMap.has(row.externalId)) {
-      const id = emailToId.get(row.email.trim().toLowerCase());
-      if (id) customerMap.set(row.externalId, id);
-    }
-  }
+  const existingProductIds = await findExistingByExternalId(Product, productRecords);
+  const newProductRows = productRecords.filter((row) => !existingProductIds.has(row.externalId));
 
-  const productsToInsert = productRecords.map((row) => ({
+  const productsToInsert = newProductRows.map((row) => ({
     ...scope,
+    externalId: row.externalId,
     name: row.name.trim(),
     category: row.category.trim(),
     price: Number(row.price),
   }));
 
-  const createdProducts = await Product.insertMany(productsToInsert);
+  const createdProducts = productsToInsert.length > 0 ? await Product.insertMany(productsToInsert) : [];
+  const productMap = new Map(existingProductIds);
   for (let i = 0; i < createdProducts.length; i++) {
-    productMap.set(productRecords[i].externalId, createdProducts[i]._id);
+    productMap.set(newProductRows[i].externalId, createdProducts[i]._id);
   }
 
-  const ordersToInsert = orderRecords.map((row) => {
+  const existingOrderIds = await findExistingByExternalId(Order, orderRecords);
+  const newOrderRows = orderRecords.filter((row) => !existingOrderIds.has(row.externalId));
+
+  const ordersToInsert = newOrderRows.map((row) => {
     const productIds = row.productExternalIds.split('|').map((id) => productMap.get(id.trim()));
     return {
       ...scope,
+      externalId: row.externalId,
       customerId: customerMap.get(row.customerExternalId),
       productIds,
       amount: Number(row.amount),
@@ -308,13 +303,13 @@ async function importMerchantData({ customerFile, productFile, orderFile, auth }
     };
   });
 
-  const createdOrders = await Order.insertMany(ordersToInsert);
+  const createdOrders = ordersToInsert.length > 0 ? await Order.insertMany(ordersToInsert) : [];
 
   await AuditLog.create({
     actor: 'merchant',
     action: 'DATA_IMPORT_COMPLETED',
     status: 'SUCCESS',
-    reason: `Imported ${createdCustomers.length} customers (${newCustomerRows.length - createdCustomers.length} skipped as duplicates), ${createdProducts.length} products, ${createdOrders.length} orders.`,
+    reason: `Imported ${createdCustomers.length} customers (${customerRecords.length - createdCustomers.length} already existed), ${createdProducts.length} products (${productRecords.length - createdProducts.length} already existed), ${createdOrders.length} orders (${orderRecords.length - createdOrders.length} already existed).`,
     metadata: {
       customersCount: createdCustomers.length,
       productsCount: createdProducts.length,
