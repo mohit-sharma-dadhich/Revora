@@ -35,21 +35,21 @@ function makeDateRange(random, startDaysAgo, endDaysAgo) {
 
 function buildCatalog() {
   return [
-    { name: 'Running Shoes', category: 'Footwear', price: 79900 },
-    { name: 'Sports Socks', category: 'Accessories', price: 12900 },
-    { name: 'Trail Running Shoes', category: 'Footwear', price: 89900 },
-    { name: 'Training Tee', category: 'Apparel', price: 24900 },
-    { name: 'Compression Tights', category: 'Fitness', price: 39900 },
-    { name: 'Yoga Mat', category: 'Fitness', price: 27900 },
-    { name: 'Water Bottle', category: 'Accessories', price: 14900 },
-    { name: 'Performance Cap', category: 'Apparel', price: 19900 },
-    { name: 'Running Watch', category: 'Accessories', price: 59900 },
-    { name: 'Gym Bag', category: 'Accessories', price: 34900 },
-    { name: 'Cross-Training Shoes', category: 'Footwear', price: 74900 },
-    { name: 'Athletic Shorts', category: 'Apparel', price: 22900 },
-    { name: 'Resistance Bands', category: 'Fitness', price: 18900 },
-    { name: 'Smart Bottle', category: 'Accessories', price: 16900 },
-    { name: 'Recovery Foam Roller', category: 'Fitness', price: 24900 },
+    { ownerId: null, sessionId: null, expiresAt: null, name: 'Running Shoes', category: 'Footwear', price: 79900 },
+    { ownerId: null, sessionId: null, expiresAt: null, name: 'Sports Socks', category: 'Accessories', price: 12900 },
+    { ownerId: null, sessionId: null, expiresAt: null, name: 'Trail Running Shoes', category: 'Footwear', price: 89900 },
+    { ownerId: null, sessionId: null, expiresAt: null, name: 'Training Tee', category: 'Apparel', price: 24900 },
+    { ownerId: null, sessionId: null, expiresAt: null, name: 'Compression Tights', category: 'Fitness', price: 39900 },
+    { ownerId: null, sessionId: null, expiresAt: null, name: 'Yoga Mat', category: 'Fitness', price: 27900 },
+    { ownerId: null, sessionId: null, expiresAt: null, name: 'Water Bottle', category: 'Accessories', price: 14900 },
+    { ownerId: null, sessionId: null, expiresAt: null, name: 'Performance Cap', category: 'Apparel', price: 19900 },
+    { ownerId: null, sessionId: null, expiresAt: null, name: 'Running Watch', category: 'Accessories', price: 59900 },
+    { ownerId: null, sessionId: null, expiresAt: null, name: 'Gym Bag', category: 'Accessories', price: 34900 },
+    { ownerId: null, sessionId: null, expiresAt: null, name: 'Cross-Training Shoes', category: 'Footwear', price: 74900 },
+    { ownerId: null, sessionId: null, expiresAt: null, name: 'Athletic Shorts', category: 'Apparel', price: 22900 },
+    { ownerId: null, sessionId: null, expiresAt: null, name: 'Resistance Bands', category: 'Fitness', price: 18900 },
+    { ownerId: null, sessionId: null, expiresAt: null, name: 'Smart Bottle', category: 'Accessories', price: 16900 },
+    { ownerId: null, sessionId: null, expiresAt: null, name: 'Recovery Foam Roller', category: 'Fitness', price: 24900 },
   ];
 }
 
@@ -71,6 +71,9 @@ function buildCustomers(customerCount, random) {
 
     return {
       _id: new mongoose.Types.ObjectId(),
+      ownerId: null,
+      sessionId: null,
+      expiresAt: null,
       name: `${firstName} ${lastName}`,
       email: `${firstName.toLowerCase()}.${lastName.toLowerCase()}${index + 1}@revora.example`,
       segment,
@@ -143,6 +146,9 @@ function generateHistoricalOrders(customers, products, orderCount, random) {
     orders.push({
       customerId: customer._id,
       productIds: uniqueBasket.map((product) => product._id),
+      ownerId: null,
+      sessionId: null,
+      expiresAt: null,
       amount,
       source: 'historical',
       status: 'completed',
@@ -165,6 +171,9 @@ function generateHistoricalOrders(customers, products, orderCount, random) {
     orders.push({
       customerId: customer._id,
       productIds: basket.map((product) => product._id),
+      ownerId: null,
+      sessionId: null,
+      expiresAt: null,
       amount,
       source: 'historical',
       status: 'completed',

@@ -7,6 +7,7 @@ const Customer = require('../../models/Customer');
 const Product = require('../../models/Product');
 const Order = require('../../models/Order');
 const { getRevenueOpportunity } = require('../opportunities/revenueOpportunity');
+const { ownershipFilter } = require('../../utils/ownership');
 
 const DEFAULT_MIN_ELIGIBLE_AUDIENCE = 20;
 const DEFAULT_MAX_EXPOSURE_PERCENT = 0.2;
@@ -58,11 +59,6 @@ function normalizeOptions(options = {}) {
     treatmentPercent,
     strategy,
   };
-}
-
-function ownershipFilter(auth) {
-  if (!auth) return {};
-  return auth.mode === 'test' ? { sessionId: auth.sessionId } : { ownerId: auth.user.id };
 }
 
 async function logAudit({ actor, action, status, reason, metadata, auth }) {
@@ -385,6 +381,8 @@ async function proposeExperiment({ opportunity, minEligibleAudience = DEFAULT_MI
       targetProductId: experiment.targetProductId.toString(),
       status: experiment.status,
       decision: experiment.decision,
+      controlCustomerIds: experiment.controlCustomerIds.map((id) => id.toString()),
+      treatmentCustomerIds: experiment.treatmentCustomerIds.map((id) => id.toString()),
     },
   };
 }

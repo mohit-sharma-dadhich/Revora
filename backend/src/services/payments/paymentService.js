@@ -6,11 +6,7 @@ const Product = require('../../models/Product');
 const Experiment = require('../../models/Experiment');
 const AuditLog = require('../../models/AuditLog');
 const { createRazorpayService } = require('../razorpay/razorpayService');
-
-function ownershipFilter(auth) {
-  if (!auth) return {};
-  return auth.mode === 'test' ? { sessionId: auth.sessionId } : { ownerId: auth.user.id };
-}
+const { ownershipFilter } = require('../../utils/ownership');
 
 function isObjectIdLike(value) {
   return typeof value === 'string' && value.trim().length > 0;

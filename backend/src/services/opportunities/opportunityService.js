@@ -55,7 +55,7 @@ async function getOpportunityRecommendation(auth) {
   if (runId) {
     try {
       await recordStep(runId, {
-        stepType: 'analysis',
+        stepType: 'data_inspection',
         toolName: 'productAffinity',
         status: 'running',
         summary: 'Scanning historical orders for co-purchase patterns',
@@ -109,7 +109,7 @@ async function getOpportunityRecommendation(auth) {
   if (runId) {
     try {
       await recordStep(runId, {
-        stepType: 'llm_call',
+        stepType: 'ai_reasoning',
         toolName: 'revenueAgent',
         status: 'running',
         summary: 'Asking the LLM to reason about this opportunity',

@@ -1,7 +1,23 @@
 function ownershipFilter(auth) {
   if (!auth) return {};
-  if (auth.mode === 'test') return { sessionId: auth.sessionId };
-  return { ownerId: auth.user.id };
+
+  if (auth.mode === 'test') {
+    return {
+      $or: [
+        { sessionId: auth.sessionId },
+        { sessionId: null },
+        { sessionId: { $exists: false } },
+      ],
+    };
+  }
+
+  return {
+    $or: [
+      { ownerId: auth.user.id },
+      { ownerId: null },
+      { ownerId: { $exists: false } },
+    ],
+  };
 }
 
 function scopedReadFilter(auth) {

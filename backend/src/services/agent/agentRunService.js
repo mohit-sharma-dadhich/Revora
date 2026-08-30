@@ -79,7 +79,7 @@ async function completeRun(runId, finalRecommendation, summary) {
   
   run.status = 'completed';
   run.completedAt = new Date();
-  run.finalRecommendation = finalRecommendation;
+  run.finalRecommendation = typeof finalRecommendation === 'string' ? finalRecommendation : JSON.stringify(finalRecommendation);
   run.summary = summary;
   
   await run.save();

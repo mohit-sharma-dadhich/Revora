@@ -83,7 +83,7 @@ function OverviewPage() {
         <motion.h1 initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.08 }} className="max-w-3xl text-4xl font-semibold leading-[1.05] tracking-[-0.055em] text-white sm:text-6xl">Revora<span className="text-emerald">.</span></motion.h1>
         <motion.p initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.14 }} className="mt-5 max-w-2xl text-xl leading-8 text-slate-300 sm:text-2xl">Autonomous Revenue Growth Agent for Merchants</motion.p>
         <motion.p initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.2 }} className="mt-5 max-w-xl text-sm leading-7 text-muted sm:text-base">Revora discovers high-signal cross-sell opportunities, turns them into controlled experiments, and closes the loop with an evidence-backed SCALE or STOP decision.</motion.p>
-        <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.27 }} className="mt-8"><Button className="h-11 px-5" onClick={() => navigate('/opportunity')}>Run Discovery <Lightbulb size={16} /></Button></motion.div>
+        <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: 0.27 }} className="mt-8"><Button className="h-11 px-5" onClick={() => navigate('/onboarding')}>Run Discovery <Lightbulb size={16} /></Button></motion.div>
       </section>
       <ArchitectureDiagram />
       <section className="mt-5 grid gap-4 md:grid-cols-3">

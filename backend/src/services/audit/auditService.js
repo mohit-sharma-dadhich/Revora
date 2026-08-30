@@ -1,9 +1,5 @@
 const AuditLog = require('../../models/AuditLog');
-
-function ownershipFilter(auth) {
-  if (!auth) return {};
-  return auth.mode === 'test' ? { sessionId: auth.sessionId } : { ownerId: auth.user.id };
-}
+const { ownershipFilter } = require('../../utils/ownership');
 
 async function listAuditLogs({ auth, limit = 50, skip = 0, action, status } = {}) {
   const maxLimit = 200;

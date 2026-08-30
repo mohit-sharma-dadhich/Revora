@@ -3,6 +3,7 @@ const Order = require('../../models/Order');
 const AuditLog = require('../../models/AuditLog');
 const { measureExperiment } = require('../measurement/measurementService');
 const { decideOutcome } = require('./decisionService');
+const { ownershipFilter } = require('../../utils/ownership');
 
 const PRE_RUNNING_STATUSES = new Set(['draft', 'pending']);
 
@@ -25,11 +26,6 @@ function normalizeExperiment(experiment) {
     createdAt: experiment.createdAt ? experiment.createdAt.toISOString() : null,
     updatedAt: experiment.updatedAt ? experiment.updatedAt.toISOString() : null,
   };
-}
-
-function ownershipFilter(auth) {
-  if (!auth) return {};
-  return auth.mode === 'test' ? { sessionId: auth.sessionId } : { ownerId: auth.user.id };
 }
 
 async function logLifecycleEvent({ action, status = 'SUCCESS', reason, experimentId, metadata = {}, auth }) {
