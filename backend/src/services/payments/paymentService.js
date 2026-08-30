@@ -6,19 +6,24 @@ const Product = require('../../models/Product');
 const Experiment = require('../../models/Experiment');
 const AuditLog = require('../../models/AuditLog');
 const { createRazorpayService } = require('../razorpay/razorpayService');
-const { ownershipFields, ownershipFilter } = require('../../utils/ownership');
+const { ownershipFields, ownershipFilter, resolveOwnershipScope } = require('../../utils/ownership');
+
+function getAuditScopeFromContext(auth, orderDoc) {
+  return resolveOwnershipScope(auth || orderDoc || null);
+}
 
 function isObjectIdLike(value) {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
-async function logPaymentAudit({ action, status, reason, metadata = {} }) {
+async function logPaymentAudit({ action, status, reason, metadata = {}, auth = null, orderDoc = null }) {
   await AuditLog.create({
     actor: 'system',
     action,
     status,
     reason: reason || null,
     metadata,
+    ...getAuditScopeFromContext(auth, orderDoc),
   });
 }
 
@@ -167,6 +172,8 @@ async function createExperimentOrder({ experimentId, customerId, auth }) {
       razorpayOrderId: razorpayOrder.id,
       amount,
     },
+    auth,
+    orderDoc: orderDocument,
   });
 
   return {
@@ -222,12 +229,16 @@ function verifyWebhookSignature({ rawBody, signatureHeader }) {
   }
 }
 
-async function hasProcessedWebhookEvent(eventId) {
+async function hasProcessedWebhookEvent(eventId, ownerContext = null) {
   if (!eventId) return false;
-  return Boolean(await AuditLog.exists({ action: 'RAZORPAY_WEBHOOK_PROCESSED', 'metadata.eventId': eventId }));
+  return Boolean(await AuditLog.exists({
+    action: 'RAZORPAY_WEBHOOK_PROCESSED',
+    'metadata.eventId': eventId,
+    ...getAuditScopeFromContext(null, ownerContext),
+  }));
 }
 
-async function logWebhookEvent(eventId, event) {
+async function logWebhookEvent(eventId, event, ownerContext = null) {
   if (!eventId) return;
   await AuditLog.create({
     actor: 'system',
@@ -235,6 +246,7 @@ async function logWebhookEvent(eventId, event) {
     status: 'SUCCESS',
     reason: `Processed Razorpay ${event} webhook.`,
     metadata: { eventId, event },
+    ...getAuditScopeFromContext(null, ownerContext),
   });
 }
 
@@ -269,7 +281,7 @@ async function handlePaymentCapturedWebhook(payload, eventId) {
   }
 
   if (order.status === 'paid' && order.razorpayPaymentId === razorpayPaymentId) {
-    await logWebhookEvent(eventId, payload.event);
+    await logWebhookEvent(eventId, payload.event, order);
     return {
       success: true,
       data: {
@@ -286,7 +298,7 @@ async function handlePaymentCapturedWebhook(payload, eventId) {
   const persistedOrder = await Order.findById(order._id);
 
   if (persistedOrder.status === 'paid' && persistedOrder.razorpayPaymentId === razorpayPaymentId) {
-    await logWebhookEvent(eventId, payload.event);
+    await logWebhookEvent(eventId, payload.event, persistedOrder);
     return {
       success: true,
       data: {
@@ -316,8 +328,9 @@ async function handlePaymentCapturedWebhook(payload, eventId) {
       experimentGroup: persistedOrder.experimentGroup || null,
       orderId: persistedOrder._id.toString(),
     },
+    orderDoc: persistedOrder,
   });
-  await logWebhookEvent(eventId, payload.event);
+  await logWebhookEvent(eventId, payload.event, persistedOrder);
 
   return {
     success: true,
@@ -370,8 +383,9 @@ async function handlePaymentFailedWebhook(payload, eventId) {
       errorCode: paymentEntity.error_code || null,
       errorDescription: paymentEntity.error_description || null,
     },
+    orderDoc: order,
   });
-  await logWebhookEvent(eventId, payload.event);
+  await logWebhookEvent(eventId, payload.event, order);
 
   return { success: true, data: { orderId: order.razorpayOrderId, paymentId: order.razorpayPaymentId, status: order.status, experimentId: order.experimentId ? order.experimentId.toString() : null, customerId: order.customerId ? order.customerId.toString() : null, group: order.experimentGroup || null } };
 }
@@ -405,6 +419,8 @@ async function verifyExperimentPayment({ razorpay_order_id, razorpay_payment_id,
         customerId: order.customerId ? order.customerId.toString() : null,
         experimentGroup: order.experimentGroup || null,
       },
+      auth,
+      orderDoc: order,
     });
 
     throw new Error(error.message);
@@ -456,6 +472,8 @@ async function verifyExperimentPayment({ razorpay_order_id, razorpay_payment_id,
       experimentGroup: persistedOrder.experimentGroup || null,
       orderId: persistedOrder._id.toString(),
     },
+    auth,
+    orderDoc: persistedOrder,
   });
 
   return {

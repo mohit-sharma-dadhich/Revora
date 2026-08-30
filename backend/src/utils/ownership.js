@@ -40,8 +40,39 @@ function ownershipFields(auth) {
     };
   }
 
+  if (auth.mode === 'live') {
+    return auth.user && auth.user.id ? { ownerId: auth.user.id } : {};
+  }
+
+  if (auth.ownerId || auth.sessionId || auth.expiresAt) {
+    return {
+      ...(auth.ownerId ? { ownerId: auth.ownerId } : {}),
+      ...(auth.sessionId ? { sessionId: auth.sessionId } : {}),
+      ...(auth.expiresAt ? { expiresAt: auth.expiresAt } : {}),
+    };
+  }
+
+  return {};
+}
+
+function resolveOwnershipScope(auth) {
+  if (!auth) return {};
+
+  if (auth.mode === 'test') {
+    return {
+      sessionId: auth.sessionId,
+      expiresAt: auth.expiresAt,
+    };
+  }
+
+  if (auth.mode === 'live') {
+    return auth.user && auth.user.id ? { ownerId: auth.user.id } : {};
+  }
+
   return {
-    ownerId: auth.user.id,
+    ...(auth.ownerId ? { ownerId: auth.ownerId } : {}),
+    ...(auth.sessionId ? { sessionId: auth.sessionId } : {}),
+    ...(auth.expiresAt ? { expiresAt: auth.expiresAt } : {}),
   };
 }
 
@@ -55,5 +86,6 @@ module.exports = {
   auditOwnershipFilter,
   ownershipFilter,
   ownershipFields,
+  resolveOwnershipScope,
   scopedReadFilter,
 };
