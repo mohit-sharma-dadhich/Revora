@@ -15,11 +15,15 @@ test('test-mode ownership filter keeps the current session and the shared demo d
   });
 });
 
-test('live-mode ownership filter is scoped to the current user only', () => {
+test('live-mode ownership filter includes current user and unscoped baseline records', () => {
   const filter = ownershipFilter({ mode: 'live', user: { id: 'user-42' } });
 
   assert.deepEqual(filter, {
-    ownerId: 'user-42',
+    $or: [
+      { ownerId: 'user-42' },
+      { ownerId: null },
+      { ownerId: { $exists: false } },
+    ],
   });
 });
 

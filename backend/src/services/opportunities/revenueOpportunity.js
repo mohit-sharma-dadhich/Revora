@@ -85,25 +85,7 @@ async function getRankedOpportunities({
       return left.relatedProductId.localeCompare(right.relatedProductId);
     });
 
-  const ranked = validOpportunities.length > 0
-    ? validOpportunities.slice(0, limit)
-    : opportunityRows
-      .sort((left, right) => {
-        if (right.opportunityScore !== left.opportunityScore) {
-          return right.opportunityScore - left.opportunityScore;
-        }
-
-        if (right.affinity !== left.affinity) {
-          return right.affinity - left.affinity;
-        }
-
-        if (left.baseProductId !== right.baseProductId) {
-          return left.baseProductId.localeCompare(right.baseProductId);
-        }
-
-        return left.relatedProductId.localeCompare(right.relatedProductId);
-      })
-      .slice(0, limit);
+  const ranked = validOpportunities.slice(0, limit);
 
   if (ranked.length === 0) {
     return [];

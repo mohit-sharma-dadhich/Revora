@@ -225,6 +225,11 @@ async function importMerchantData({ customerFile, productFile, orderFile, auth }
 
   const scope = ownershipFields(auth);
 
+  const existingCustomerEmails = new Set(
+    (await Customer.find({ ...scope, email: { $in: customerRecords.map((row) => row.email.trim().toLowerCase()) } }, { email: 1 }).lean())
+      .map((doc) => doc.email)
+  );
+
   // Validate file sizes
   validateFileSize(customerFile.buffer);
   validateFileSize(productFile.buffer);
@@ -240,88 +245,88 @@ async function importMerchantData({ customerFile, productFile, orderFile, auth }
   const productExternalIds = await validateProductsCSV(productRecords);
   await validateOrdersCSV(orderRecords, customerExternalIds, productExternalIds);
 
-  const session = await mongoose.startSession();
+  const customerMap = new Map();
+  const productMap = new Map();
 
-  try {
-    let createdCustomers = [];
-    let createdProducts = [];
-    let createdOrders = [];
+  const newCustomerRows = customerRecords.filter(
+    (row) => !existingCustomerEmails.has(row.email.trim().toLowerCase())
+  );
 
-    await session.withTransaction(async () => {
-      await Customer.deleteMany(scope, { session });
-      await Product.deleteMany(scope, { session });
-      await Order.deleteMany(scope, { session });
+  const customersToInsert = newCustomerRows.map((row) => ({
+    ...scope,
+    name: row.name.trim(),
+    email: row.email.trim().toLowerCase(),
+    segment: row.segment.trim(),
+    totalSpend: 0,
+    orderCount: 0,
+    lastPurchaseAt: null,
+  }));
 
-      const customerMap = new Map();
-      const productMap = new Map();
-
-      const customersToInsert = customerRecords.map((row) => ({
-        ...scope,
-        name: row.name.trim(),
-        email: row.email.trim().toLowerCase(),
-        segment: row.segment.trim(),
-        totalSpend: 0,
-        orderCount: 0,
-        lastPurchaseAt: null,
-      }));
-
-      createdCustomers = await Customer.insertMany(customersToInsert, { session });
-      for (let i = 0; i < createdCustomers.length; i++) {
-        customerMap.set(customerRecords[i].externalId, createdCustomers[i]._id);
-      }
-
-      const productsToInsert = productRecords.map((row) => ({
-        ...scope,
-        name: row.name.trim(),
-        category: row.category.trim(),
-        price: Number(row.price),
-      }));
-
-      createdProducts = await Product.insertMany(productsToInsert, { session });
-      for (let i = 0; i < createdProducts.length; i++) {
-        productMap.set(productRecords[i].externalId, createdProducts[i]._id);
-      }
-
-      const ordersToInsert = orderRecords.map((row) => {
-        const productIds = row.productExternalIds.split('|').map((id) => productMap.get(id.trim()));
-        return {
-          ...scope,
-          customerId: customerMap.get(row.customerExternalId),
-          productIds,
-          amount: Number(row.amount),
-          source: 'historical',
-          status: row.status.toLowerCase(),
-          createdAt: new Date(row.createdAt),
-        };
-      });
-
-      createdOrders = await Order.insertMany(ordersToInsert, { session });
-
-      await AuditLog.create([
-        {
-          actor: 'merchant',
-          action: 'DATA_IMPORT_COMPLETED',
-          status: 'SUCCESS',
-          reason: `Imported ${createdCustomers.length} customers, ${createdProducts.length} products, ${createdOrders.length} orders.`,
-          metadata: {
-            customersCount: createdCustomers.length,
-            productsCount: createdProducts.length,
-            ordersCount: createdOrders.length,
-          },
-          ...scope,
-        },
-      ], { session });
-    });
-
-    return {
-      customersImported: createdCustomers.length,
-      productsImported: createdProducts.length,
-      ordersImported: createdOrders.length,
-      errors: [],
-    };
-  } finally {
-    await session.endSession();
+  const createdCustomers = customersToInsert.length > 0
+    ? await Customer.insertMany(customersToInsert)
+    : [];
+  for (let i = 0; i < createdCustomers.length; i++) {
+    customerMap.set(newCustomerRows[i].externalId, createdCustomers[i]._id);
   }
+
+  const existingCustomers = await Customer.find(
+    { ...scope, email: { $in: customerRecords.map((row) => row.email.trim().toLowerCase()) } },
+    { email: 1 }
+  ).lean();
+  const emailToId = new Map(existingCustomers.map((doc) => [doc.email, doc._id]));
+  for (const row of customerRecords) {
+    if (!customerMap.has(row.externalId)) {
+      const id = emailToId.get(row.email.trim().toLowerCase());
+      if (id) customerMap.set(row.externalId, id);
+    }
+  }
+
+  const productsToInsert = productRecords.map((row) => ({
+    ...scope,
+    name: row.name.trim(),
+    category: row.category.trim(),
+    price: Number(row.price),
+  }));
+
+  const createdProducts = await Product.insertMany(productsToInsert);
+  for (let i = 0; i < createdProducts.length; i++) {
+    productMap.set(productRecords[i].externalId, createdProducts[i]._id);
+  }
+
+  const ordersToInsert = orderRecords.map((row) => {
+    const productIds = row.productExternalIds.split('|').map((id) => productMap.get(id.trim()));
+    return {
+      ...scope,
+      customerId: customerMap.get(row.customerExternalId),
+      productIds,
+      amount: Number(row.amount),
+      source: 'historical',
+      status: row.status.toLowerCase(),
+      createdAt: new Date(row.createdAt),
+    };
+  });
+
+  const createdOrders = await Order.insertMany(ordersToInsert);
+
+  await AuditLog.create({
+    actor: 'merchant',
+    action: 'DATA_IMPORT_COMPLETED',
+    status: 'SUCCESS',
+    reason: `Imported ${createdCustomers.length} customers (${newCustomerRows.length - createdCustomers.length} skipped as duplicates), ${createdProducts.length} products, ${createdOrders.length} orders.`,
+    metadata: {
+      customersCount: createdCustomers.length,
+      productsCount: createdProducts.length,
+      ordersCount: createdOrders.length,
+    },
+    ...scope,
+  });
+
+  return {
+    customersImported: createdCustomers.length,
+    productsImported: createdProducts.length,
+    ordersImported: createdOrders.length,
+    errors: [],
+  };
 }
 
 module.exports = {

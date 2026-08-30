@@ -11,13 +11,13 @@ function ownershipFilter(auth) {
     };
   }
 
-  if (auth.user && auth.user.id) {
-    return {
-      ownerId: auth.user.id,
-    };
-  }
-
-  return {};
+  return {
+    $or: [
+      { ownerId: auth.user && auth.user.id ? auth.user.id : null },
+      { ownerId: null },
+      { ownerId: { $exists: false } },
+    ],
+  };
 }
 
 function auditOwnershipFilter(auth) {
