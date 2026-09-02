@@ -1,11 +1,12 @@
 import { motion } from 'framer-motion'
-import { ChevronDown, ClipboardList } from 'lucide-react'
+import { Check, ChevronDown, ClipboardList, X } from 'lucide-react'
 import { useState } from 'react'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardHeader } from '../components/ui/card'
 import { Badge } from '../components/ui/badge'
-import { useAuditLog } from '../lib/apiHooks'
-import type { AuditLogEntry } from '../lib/types'
+import { useAuditLog, usePaymentAudits } from '../lib/apiHooks'
+import { formatMoney } from '../lib/format'
+import type { AuditLogEntry, PaymentAudit, PaymentAuditStep } from '../lib/types'
 
 interface AuditPageParams {
   limit: number
@@ -61,6 +62,56 @@ function getStatusColor(status: string): string {
   }
 }
 
+function getPaymentStatusColor(status: string): string {
+  switch (status) {
+    case 'paid':
+      return 'border-emerald/20 bg-emerald/10 text-emerald'
+    case 'failed':
+      return 'border-red-500/20 bg-red-500/10 text-red-300'
+    case 'pending':
+      return 'border-amber-500/20 bg-amber-500/10 text-amber-300'
+    default:
+      return 'border-line bg-white/[0.04] text-muted'
+  }
+}
+
+function getPaymentStepIcon(status: PaymentAuditStep['status']) {
+  return status === 'SUCCESS'
+    ? <Check size={14} className="text-emerald" />
+    : <X size={14} className="text-red-400" />
+}
+
+function PaymentCard({ payment, index }: { payment: PaymentAudit; index: number }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: -8 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.25, delay: index * 0.05 }}
+      className="border-b border-line p-5 last:border-b-0"
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-xs text-muted">{payment.razorpayOrderId || 'Razorpay order unavailable'}</p>
+          <p className="mt-1 text-sm font-medium text-slate-200">{formatMoney(payment.amount)}</p>
+          <p className="mt-1 text-xs text-muted">{payment.experimentGroup || 'No experiment group'}</p>
+        </div>
+        <Badge className={getPaymentStatusColor(payment.status)}>{payment.status}</Badge>
+      </div>
+      {payment.steps.length > 0 && (
+        <div className="mt-4 space-y-2 border-t border-line pt-3">
+          {payment.steps.map((step, stepIndex) => (
+            <div key={`${step.stepType}-${step.timestamp}-${stepIndex}`} className="flex items-center gap-2 text-xs">
+              <span className="flex h-5 w-5 items-center justify-center">{getPaymentStepIcon(step.status)}</span>
+              <span className="font-medium text-slate-300">{titleCase(step.stepType)}</span>
+              <span className="text-muted">{new Date(step.timestamp).toLocaleString()}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </motion.div>
+  )
+}
+
 function AuditEntryRow({ entry, index }: { entry: AuditLogEntry; index: number }) {
   const [expanded, setExpanded] = useState(false)
 
@@ -113,24 +164,13 @@ export function AuditPage() {
   })
 
   const query = useAuditLog(params)
+  const paymentQuery = usePaymentAudits()
   const data = query.data
+  const paymentData = paymentQuery.data
 
-  if (query.isLoading && !data) return <AuditSkeleton />
+  if (query.isLoading && !data && paymentQuery.isLoading && !paymentData) return <AuditSkeleton />
 
-  if (query.isError && !data) {
-    return (
-      <Card className="border-red-500/20">
-        <CardContent className="p-6">
-          <p className="text-sm text-red-300">Unable to load audit trail</p>
-          <p className="mt-2 text-sm text-muted">{query.error.message}</p>
-        </CardContent>
-      </Card>
-    )
-  }
-
-  if (!data || data.entries.length === 0) return <EmptyAuditState />
-
-  const canLoadMore = data.skip + data.limit < data.total
+  const canLoadMore = Boolean(data && data.skip + data.limit < data.total)
 
   return (
     <motion.div
@@ -150,7 +190,14 @@ export function AuditPage() {
         </p>
       </div>
 
-      <Card>
+      {query.isError && !data ? (
+        <Card className="border-red-500/20">
+          <CardContent className="p-6">
+            <p className="text-sm text-red-300">Unable to load audit trail</p>
+            <p className="mt-2 text-sm text-muted">{query.error.message}</p>
+          </CardContent>
+        </Card>
+      ) : data && data.entries.length > 0 ? <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <div>
@@ -168,7 +215,7 @@ export function AuditPage() {
             ))}
           </div>
         </CardContent>
-      </Card>
+      </Card> : <EmptyAuditState />}
 
       {canLoadMore && (
         <div className="flex justify-center">
@@ -186,6 +233,31 @@ export function AuditPage() {
           </Button>
         </div>
       )}
+
+      <section className="space-y-4 pt-2">
+        <div>
+          <h2 className="text-xl font-semibold text-white">Payments</h2>
+          <p className="mt-1 text-sm text-muted">Experiment payment history and verification steps.</p>
+        </div>
+        {paymentQuery.isError && !paymentData ? (
+          <Card className="border-red-500/20">
+            <CardContent className="p-6">
+              <p className="text-sm text-red-300">Unable to load payments</p>
+              <p className="mt-2 text-sm text-muted">{paymentQuery.error.message}</p>
+            </CardContent>
+          </Card>
+        ) : paymentData && paymentData.payments.length > 0 ? (
+          <Card>
+            <CardContent className="p-0">
+              {paymentData.payments.map((payment, index) => <PaymentCard key={payment.id} payment={payment} index={index} />)}
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="border-dashed">
+            <CardContent className="p-6 text-sm text-muted">No experiment payments yet.</CardContent>
+          </Card>
+        )}
+      </section>
     </motion.div>
   )
 }

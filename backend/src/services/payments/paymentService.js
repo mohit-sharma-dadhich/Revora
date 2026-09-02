@@ -4,26 +4,18 @@ const Order = require('../../models/Order');
 const Customer = require('../../models/Customer');
 const Product = require('../../models/Product');
 const Experiment = require('../../models/Experiment');
-const AuditLog = require('../../models/AuditLog');
 const { createRazorpayService } = require('../razorpay/razorpayService');
-const { ownershipFields, ownershipFilter, resolveOwnershipScope } = require('../../utils/ownership');
-
-function getAuditScopeFromContext(auth, orderDoc) {
-  return resolveOwnershipScope(auth || orderDoc || null);
-}
+const { ownershipFields, ownershipFilter } = require('../../utils/ownership');
 
 function isObjectIdLike(value) {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
-async function logPaymentAudit({ action, status, reason, metadata = {}, auth = null, orderDoc = null }) {
-  await AuditLog.create({
-    actor: 'system',
-    action,
-    status,
-    reason: reason || null,
-    metadata,
-    ...getAuditScopeFromContext(auth, orderDoc),
+async function pushAuditStep(orderId, { stepType, status, reason = null, metadata = {}, webhookEventId = null }) {
+  await Order.findByIdAndUpdate(orderId, {
+    $push: {
+      auditSteps: { stepType, status, reason, metadata, webhookEventId, timestamp: new Date() },
+    },
   });
 }
 
@@ -158,8 +150,8 @@ async function createExperimentOrder({ experimentId, customerId, auth }) {
   orderDocument.razorpayOrderId = razorpayOrder.id;
   await orderDocument.save();
 
-  await logPaymentAudit({
-    action: 'PAYMENT_ORDER_CREATED',
+  await pushAuditStep(orderDocument._id, {
+    stepType: 'order_created',
     status: 'SUCCESS',
     reason: 'Experiment order created and Razorpay order issued.',
     metadata: {
@@ -172,8 +164,6 @@ async function createExperimentOrder({ experimentId, customerId, auth }) {
       razorpayOrderId: razorpayOrder.id,
       amount,
     },
-    auth,
-    orderDoc: orderDocument,
   });
 
   return {
@@ -229,25 +219,9 @@ function verifyWebhookSignature({ rawBody, signatureHeader }) {
   }
 }
 
-async function hasProcessedWebhookEvent(eventId, ownerContext = null) {
-  if (!eventId) return false;
-  return Boolean(await AuditLog.exists({
-    action: 'RAZORPAY_WEBHOOK_PROCESSED',
-    'metadata.eventId': eventId,
-    ...getAuditScopeFromContext(null, ownerContext),
-  }));
-}
-
-async function logWebhookEvent(eventId, event, ownerContext = null) {
-  if (!eventId) return;
-  await AuditLog.create({
-    actor: 'system',
-    action: 'RAZORPAY_WEBHOOK_PROCESSED',
-    status: 'SUCCESS',
-    reason: `Processed Razorpay ${event} webhook.`,
-    metadata: { eventId, event },
-    ...getAuditScopeFromContext(null, ownerContext),
-  });
+async function hasProcessedWebhookEvent(eventId, order) {
+  if (!eventId || !order) return false;
+  return (order.auditSteps || []).some((step) => step.webhookEventId === eventId);
 }
 
 function getPaymentEntity(payload) {
@@ -258,8 +232,6 @@ async function handlePaymentCapturedWebhook(payload, eventId) {
   if (!payload || payload.event !== 'payment.captured') {
     throw new Error('Unsupported webhook event.');
   }
-
-  if (await hasProcessedWebhookEvent(eventId)) return { success: true, duplicate: true };
 
   const paymentEntity = getPaymentEntity(payload);
 
@@ -280,8 +252,16 @@ async function handlePaymentCapturedWebhook(payload, eventId) {
     throw new Error('Payment order not found.');
   }
 
+  if (await hasProcessedWebhookEvent(eventId, order)) return { success: true, duplicate: true };
+
   if (order.status === 'paid' && order.razorpayPaymentId === razorpayPaymentId) {
-    await logWebhookEvent(eventId, payload.event, order);
+    await pushAuditStep(order._id, {
+      stepType: 'webhook_captured',
+      status: 'SUCCESS',
+      reason: 'Razorpay payment.captured webhook verified; order was already paid.',
+      metadata: { razorpayOrderId, razorpayPaymentId },
+      webhookEventId: eventId,
+    });
     return {
       success: true,
       data: {
@@ -298,7 +278,13 @@ async function handlePaymentCapturedWebhook(payload, eventId) {
   const persistedOrder = await Order.findById(order._id);
 
   if (persistedOrder.status === 'paid' && persistedOrder.razorpayPaymentId === razorpayPaymentId) {
-    await logWebhookEvent(eventId, payload.event, persistedOrder);
+    await pushAuditStep(persistedOrder._id, {
+      stepType: 'webhook_captured',
+      status: 'SUCCESS',
+      reason: 'Razorpay payment.captured webhook verified; order was already paid.',
+      metadata: { razorpayOrderId, razorpayPaymentId },
+      webhookEventId: eventId,
+    });
     return {
       success: true,
       data: {
@@ -316,8 +302,8 @@ async function handlePaymentCapturedWebhook(payload, eventId) {
   persistedOrder.status = 'paid';
   await persistedOrder.save();
 
-  await logPaymentAudit({
-    action: 'WEBHOOK_PAYMENT_CAPTURED',
+  await pushAuditStep(persistedOrder._id, {
+    stepType: 'webhook_captured',
     status: 'SUCCESS',
     reason: 'Razorpay payment.captured webhook verified and order marked paid.',
     metadata: {
@@ -328,9 +314,8 @@ async function handlePaymentCapturedWebhook(payload, eventId) {
       experimentGroup: persistedOrder.experimentGroup || null,
       orderId: persistedOrder._id.toString(),
     },
-    orderDoc: persistedOrder,
+    webhookEventId: eventId,
   });
-  await logWebhookEvent(eventId, payload.event, persistedOrder);
 
   return {
     success: true,
@@ -350,8 +335,6 @@ async function handlePaymentFailedWebhook(payload, eventId) {
     throw new Error('Unsupported webhook event.');
   }
 
-  if (await hasProcessedWebhookEvent(eventId)) return { success: true, duplicate: true };
-
   const paymentEntity = getPaymentEntity(payload);
   if (!paymentEntity || !paymentEntity.order_id || !paymentEntity.id) {
     throw new Error('Payment order metadata is missing.');
@@ -359,6 +342,8 @@ async function handlePaymentFailedWebhook(payload, eventId) {
 
   const order = await Order.findOne({ razorpayOrderId: paymentEntity.order_id });
   if (!order) throw new Error('Payment order not found.');
+
+  if (await hasProcessedWebhookEvent(eventId, order)) return { success: true, duplicate: true };
 
   if (order.status !== 'paid') {
     order.status = 'failed';
@@ -370,9 +355,9 @@ async function handlePaymentFailedWebhook(payload, eventId) {
     await order.save();
   }
 
-  await logPaymentAudit({
-    action: 'WEBHOOK_PAYMENT_FAILED',
-    status: 'SUCCESS',
+  await pushAuditStep(order._id, {
+    stepType: 'webhook_failed',
+    status: 'FAILED',
     reason: 'Razorpay payment.failed webhook verified and order marked failed.',
     metadata: {
       razorpayOrderId: paymentEntity.order_id,
@@ -383,9 +368,8 @@ async function handlePaymentFailedWebhook(payload, eventId) {
       errorCode: paymentEntity.error_code || null,
       errorDescription: paymentEntity.error_description || null,
     },
-    orderDoc: order,
+    webhookEventId: eventId,
   });
-  await logWebhookEvent(eventId, payload.event, order);
 
   return { success: true, data: { orderId: order.razorpayOrderId, paymentId: order.razorpayPaymentId, status: order.status, experimentId: order.experimentId ? order.experimentId.toString() : null, customerId: order.customerId ? order.customerId.toString() : null, group: order.experimentGroup || null } };
 }
@@ -408,8 +392,8 @@ async function verifyExperimentPayment({ razorpay_order_id, razorpay_payment_id,
       razorpaySignature: razorpay_signature,
     });
   } catch (error) {
-    await logPaymentAudit({
-      action: 'PAYMENT_VERIFICATION_FAILED',
+    await pushAuditStep(order._id, {
+      stepType: 'client_verification_failed',
       status: 'FAILED',
       reason: error.message,
       metadata: {
@@ -419,8 +403,6 @@ async function verifyExperimentPayment({ razorpay_order_id, razorpay_payment_id,
         customerId: order.customerId ? order.customerId.toString() : null,
         experimentGroup: order.experimentGroup || null,
       },
-      auth,
-      orderDoc: order,
     });
 
     throw new Error(error.message);
@@ -460,8 +442,8 @@ async function verifyExperimentPayment({ razorpay_order_id, razorpay_payment_id,
   persistedOrder.status = 'paid';
   await persistedOrder.save();
 
-  await logPaymentAudit({
-    action: 'PAYMENT_VERIFIED',
+  await pushAuditStep(persistedOrder._id, {
+    stepType: 'client_verified',
     status: 'SUCCESS',
     reason: 'Razorpay signature verified and order marked paid.',
     metadata: {
@@ -472,8 +454,6 @@ async function verifyExperimentPayment({ razorpay_order_id, razorpay_payment_id,
       experimentGroup: persistedOrder.experimentGroup || null,
       orderId: persistedOrder._id.toString(),
     },
-    auth,
-    orderDoc: persistedOrder,
   });
 
   return {

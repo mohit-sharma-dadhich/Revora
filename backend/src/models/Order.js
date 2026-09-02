@@ -54,6 +54,23 @@ const orderSchema = new mongoose.Schema(
       enum: ['pending', 'paid', 'completed', 'failed', 'cancelled'],
       default: 'completed',
     },
+    auditSteps: [{
+      stepType: {
+        type: String,
+        required: true,
+        enum: ['order_created', 'client_verified', 'client_verification_failed', 'webhook_captured', 'webhook_failed'],
+      },
+      status: {
+        type: String,
+        required: true,
+        enum: ['SUCCESS', 'FAILED'],
+      },
+      reason: { type: String, default: null },
+      metadata: { type: mongoose.Schema.Types.Mixed, default: {} },
+      webhookEventId: { type: String, default: null },
+      timestamp: { type: Date, default: Date.now },
+      _id: false,
+    }],
     experimentId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Experiment',

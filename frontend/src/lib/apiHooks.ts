@@ -13,6 +13,7 @@ import {
   getLatestAgentRun,
   getOpportunities,
   getOpportunityRecommendation,
+  getPaymentAudits,
   importMerchantData,
   listOpportunities,
   proposeExperiment,
@@ -29,6 +30,7 @@ import type {
   Opportunity,
   OpportunityResponseData,
   PaymentResponseData,
+  PaymentAuditResponseData,
   ProposeExperimentParams,
   ProposeExperimentResponseData,
   Recommendation,
@@ -84,6 +86,10 @@ interface GetAuditLogParams {
 
 export function useAuditLog(params?: GetAuditLogParams): UseQueryResult<AuditLogResponseData> {
   return useQuery({ queryKey: ['audit', params], queryFn: () => getAuditLog(params) })
+}
+
+export function usePaymentAudits(limit = 50, skip = 0): UseQueryResult<PaymentAuditResponseData> {
+  return useQuery({ queryKey: ['paymentAudits', limit, skip], queryFn: () => getPaymentAudits(limit, skip) })
 }
 
 export function useImportMerchantData(): UseMutationResult<ImportResult, Error, FormData> {

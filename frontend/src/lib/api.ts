@@ -11,6 +11,7 @@ import type {
   Opportunity,
   OpportunityResponseData,
   PaymentResponseData,
+  PaymentAuditResponseData,
   ProposeExperimentParams,
   ProposeExperimentResponseData,
   Recommendation,
@@ -189,6 +190,11 @@ function auditQueryString(params?: GetAuditLogParams): string {
 
 export function getAuditLog(params?: GetAuditLogParams): Promise<AuditLogResponseData> {
   return request<AuditLogResponseData>(`/audit${auditQueryString(params)}`)
+}
+
+export function getPaymentAudits(limit = 50, skip = 0): Promise<PaymentAuditResponseData> {
+  const search = new URLSearchParams({ limit: String(limit), skip: String(skip) })
+  return request<PaymentAuditResponseData>(`/audit/payments?${search.toString()}`)
 }
 
 export function importMerchantData(files: FormData): Promise<ImportResult> {

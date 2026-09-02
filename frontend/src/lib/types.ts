@@ -218,6 +218,34 @@ export interface AuditLogResponseData {
   skip: number
 }
 
+export interface PaymentAuditStep {
+  stepType: string
+  status: 'SUCCESS' | 'FAILED'
+  reason: string | null
+  metadata: Record<string, unknown>
+  timestamp: string
+}
+
+export interface PaymentAudit {
+  id: string
+  razorpayOrderId: string | null
+  razorpayPaymentId: string | null
+  status: 'paid' | 'failed' | 'pending' | string
+  amount: number
+  experimentId: string | null
+  experimentGroup: string | null
+  customerId: string | null
+  createdAt: string
+  steps: PaymentAuditStep[]
+}
+
+export interface PaymentAuditResponseData {
+  payments: PaymentAudit[]
+  total: number
+  limit: number
+  skip: number
+}
+
 export interface ImportResult {
   customersImported: number
   productsImported: number
