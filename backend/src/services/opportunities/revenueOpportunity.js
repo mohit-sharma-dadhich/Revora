@@ -1,6 +1,6 @@
 const productAffinity = require('../analytics/productAffinity');
 const Product = require('../../models/Product');
-const { ownershipFilter } = require('../../utils/ownership');
+const { ownershipFilter, ownershipFields } = require('../../utils/ownership');
 
 const { getProductAffinity, MIN_BASE_CUSTOMERS } = productAffinity;
 
@@ -34,7 +34,7 @@ function calculateOpportunityScore({ affinity, baseCustomerCount }) {
   return Number((affinity * Math.sqrt(baseCustomerCount)).toFixed(10));
 }
 
-async function getRankedOpportunities({
+async function getRankedOpportunitiesWithDiagnostics({
   minAffinity = DEFAULT_MIN_AFFINITY,
   minBaseCustomers = MIN_BASE_CUSTOMERS,
   auth,
@@ -52,7 +52,14 @@ async function getRankedOpportunities({
     throw new Error('limit must be a positive integer');
   }
 
-  const affinityResults = await getProductAffinity({ minBaseCustomers, auth });
+  const {
+    pairResults: affinityResults,
+    usedPrivateDataOnly,
+    audienceBlocked,
+    bestUnqualifiedAffinity,
+    bestUnqualifiedBaseCustomers,
+  } = await getProductAffinity({ minBaseCustomers, minAffinity, auth });
+  const discoveryScope = usedPrivateDataOnly ? ownershipFields(auth) : ownershipFilter(auth);
 
   const opportunityRows = affinityResults.map((row) => ({
     baseProductId: row.baseProductId,
@@ -87,14 +94,24 @@ async function getRankedOpportunities({
 
   const ranked = validOpportunities.slice(0, limit);
 
+  const diagnostic = {
+    audienceBlocked,
+    bestUnqualifiedAffinity,
+    bestUnqualifiedBaseCustomers,
+  };
+
   if (ranked.length === 0) {
-    return [];
+    return {
+      opportunities: [],
+      usedPrivateDataOnly,
+      diagnostic,
+    };
   }
 
   const productIds = [...new Set(ranked.flatMap((opportunity) => [opportunity.baseProductId, opportunity.relatedProductId]))];
   const products = await Product.find(
     {
-      ...ownershipFilter(auth),
+      ...discoveryScope,
       _id: { $in: productIds },
     },
     { name: 1 }
@@ -102,11 +119,20 @@ async function getRankedOpportunities({
 
   const productNames = new Map(products.map((product) => [product._id.toString(), product.name]));
 
-  return ranked.map((opportunity) => ({
+  return {
+    opportunities: ranked.map((opportunity) => ({
     ...opportunity,
     baseProductName: productNames.get(opportunity.baseProductId) || null,
     relatedProductName: productNames.get(opportunity.relatedProductId) || null,
-  }));
+    })),
+    usedPrivateDataOnly,
+    diagnostic,
+  };
+}
+
+async function getRankedOpportunities(options = {}) {
+  const result = await getRankedOpportunitiesWithDiagnostics(options);
+  return result.opportunities;
 }
 
 async function getRevenueOpportunity(options = {}) {
@@ -114,9 +140,19 @@ async function getRevenueOpportunity(options = {}) {
   return list[0] || null;
 }
 
+async function getRevenueOpportunityWithDiagnostics(options = {}) {
+  const result = await getRankedOpportunitiesWithDiagnostics({ ...options, limit: 1 });
+  return {
+    opportunity: result.opportunities[0] || null,
+    usedPrivateDataOnly: result.usedPrivateDataOnly,
+    diagnostic: result.diagnostic,
+  };
+}
+
 module.exports = {
   DEFAULT_MIN_AFFINITY,
   calculateOpportunityScore,
   getRankedOpportunities,
   getRevenueOpportunity,
+  getRevenueOpportunityWithDiagnostics,
 };

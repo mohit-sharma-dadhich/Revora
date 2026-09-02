@@ -17,8 +17,23 @@ function OpportunitySkeleton() {
   return <div className="space-y-5"><div className="grid gap-5 xl:grid-cols-[1.4fr_0.6fr]"><Card><CardContent className="space-y-7 p-6"><Skeleton className="h-4 w-32" /><Skeleton className="h-9 w-4/5" /><div className="grid gap-4 sm:grid-cols-2"><Skeleton className="h-20" /><Skeleton className="h-20" /></div><Skeleton className="h-3 w-full" /></CardContent></Card><Card><CardContent className="space-y-5 p-6"><Skeleton className="h-4 w-28" /><Skeleton className="h-16 w-32" /><Skeleton className="h-3 w-full" /><Skeleton className="h-10 w-full" /></CardContent></Card></div><Card><CardContent className="space-y-4 p-6"><Skeleton className="h-4 w-28" /><Skeleton className="h-7 w-4/5" /><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-3/4" /></CardContent></Card></div>
 }
 
-function EmptyOpportunity() {
-  return <Card className="border-dashed"><CardContent className="flex min-h-72 flex-col items-center justify-center text-center"><div className="grid size-12 place-items-center rounded-xl border border-line bg-white/[0.04] text-muted"><Target size={21} /></div><h1 className="mt-5 text-2xl font-semibold text-white">No opportunity found</h1><p className="mt-3 max-w-md text-sm leading-6 text-muted">There is no qualified cross-sell opportunity in the current evidence set.</p></CardContent></Card>
+interface EmptyOpportunityProps {
+  usedPrivateDataOnly: boolean
+  audienceBlocked: boolean
+  bestUnqualifiedAffinity: number | null
+  minBaseCustomers: number
+}
+
+function EmptyOpportunity({ usedPrivateDataOnly, audienceBlocked, bestUnqualifiedAffinity, minBaseCustomers }: EmptyOpportunityProps) {
+  const message = !usedPrivateDataOnly
+    ? 'Upload your own data to see opportunities specific to your business'
+    : audienceBlocked
+      ? `None of your products have ${minBaseCustomers}+ customers yet \u2014 import more order history to enable discovery`
+      : bestUnqualifiedAffinity !== null
+        ? `Your strongest product pair reached ${formatPercent(bestUnqualifiedAffinity)} co-purchase overlap \u2014 below the 65% threshold needed to call it a reliable opportunity`
+        : 'There is no qualified cross-sell opportunity in the current evidence set.'
+
+  return <Card className="border-dashed"><CardContent className="flex min-h-72 flex-col items-center justify-center text-center"><div className="grid size-12 place-items-center rounded-xl border border-line bg-white/[0.04] text-muted"><Target size={21} /></div><h1 className="mt-5 text-2xl font-semibold text-white">No opportunity found</h1><p className="mt-3 max-w-md text-sm leading-6 text-muted">{message}</p></CardContent></Card>
 }
 
 export function OpportunityPage() {
@@ -45,7 +60,12 @@ export function OpportunityPage() {
   }
 
   if (query.isError) return <Card className="border-red-500/20"><CardContent className="p-6"><p className="text-sm text-red-300">Unable to load opportunity</p><p className="mt-2 text-sm text-muted">{query.error.message}</p></CardContent></Card>
-  if (!opportunity) return <EmptyOpportunity />
+  if (!opportunity) return <EmptyOpportunity
+    usedPrivateDataOnly={data?.usedPrivateDataOnly ?? false}
+    audienceBlocked={data?.diagnostic?.audienceBlocked ?? false}
+    bestUnqualifiedAffinity={data?.diagnostic?.bestUnqualifiedAffinity ?? null}
+    minBaseCustomers={20}
+  />
 
   const handleProposalSuccess = (result: any) => {
     if (result.experiment && result.guardrails.passed) {

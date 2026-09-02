@@ -1,6 +1,6 @@
 const AgentRun = require('../../models/AgentRun');
 const { createRun, recordStep, completeStep, failStep, completeRun, failRun } = require('../agent/agentRunService');
-const { getRankedOpportunities, getRevenueOpportunity } = require('./revenueOpportunity');
+const { getRankedOpportunities, getRevenueOpportunityWithDiagnostics } = require('./revenueOpportunity');
 const { generateRecommendationFromOpportunity } = require('../agent/revenueAgent');
 
 async function safeTrackingStep(label, work) {
@@ -70,8 +70,17 @@ async function getOpportunityRecommendation(auth) {
   }
 
   let opportunity = null;
+  let usedPrivateDataOnly = false;
+  let diagnostic = {
+    audienceBlocked: false,
+    bestUnqualifiedAffinity: null,
+    bestUnqualifiedBaseCustomers: null,
+  };
   try {
-    opportunity = await getRevenueOpportunity({ auth });
+    const discovery = await getRevenueOpportunityWithDiagnostics({ auth });
+    opportunity = discovery.opportunity;
+    usedPrivateDataOnly = discovery.usedPrivateDataOnly;
+    diagnostic = discovery.diagnostic;
     if (runId && opportunityDiscoveryStepIndex !== null && opportunityDiscoveryStepIndex >= 0) {
       try {
         await completeStep(runId, opportunityDiscoveryStepIndex);
@@ -102,6 +111,8 @@ async function getOpportunityRecommendation(auth) {
       recommendation: null,
       aiAvailable: false,
       aiError: null,
+      usedPrivateDataOnly,
+      diagnostic,
     };
   }
 

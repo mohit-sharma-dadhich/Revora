@@ -43,6 +43,12 @@ export interface OpportunityResponseData {
   recommendation: Recommendation | null
   aiAvailable: boolean
   aiError: string | null
+  usedPrivateDataOnly: boolean
+  diagnostic: {
+    audienceBlocked: boolean
+    bestUnqualifiedAffinity: number | null
+    bestUnqualifiedBaseCustomers: number | null
+  }
 }
 
 export interface GuardrailCheck {
