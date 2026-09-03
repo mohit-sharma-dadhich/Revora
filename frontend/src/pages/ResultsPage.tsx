@@ -36,9 +36,6 @@ export function ResultsPage() {
   if (!experiment) return <ResultEmptyState />
   if (experimentQuery.isError && !routeState.experiment) return <Card className="border-red-500/20"><CardContent className="p-6"><p className="text-sm text-red-300">Unable to load experiment results</p><p className="mt-2 text-sm text-muted">{experimentQuery.error.message}</p></CardContent></Card>
 
-  const measurement = experiment.results.measurement
-  if (!measurement) return <Card className="border-dashed"><CardContent className="flex min-h-72 flex-col items-center justify-center text-center"><FileCheck2 className="text-muted" size={24} /><h1 className="mt-5 text-2xl font-semibold text-white">Measurement not available</h1><p className="mt-3 text-sm text-muted">This experiment has not produced a completed measurement yet.</p></CardContent></Card>
-
   const isRunning = experiment.status === 'running'
   const continueToExperiment = () => navigate(`/experiment/${experiment.id}`)
   const scaleExperiment = () => {
@@ -59,24 +56,32 @@ export function ResultsPage() {
     })
   }
 
+  const actionPanel = isRunning && <Card className="border-emerald/20 bg-emerald/[0.035]">
+    <CardContent className="space-y-3 p-5">
+      {actionStep === 'confirmEnd' ? <>
+        <p className="text-xs leading-5 text-amber-200">Ending this experiment is irreversible. It will stop future scaling actions.</p>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button variant="outline" onClick={() => setActionStep('initial')}>Continue</Button>
+          <Button onClick={endExperiment} disabled={end.isPending}>{end.isPending ? 'Ending...' : 'End'}</Button>
+        </div>
+      </> : <div className="flex flex-col gap-2 sm:flex-row">
+        <Button variant="outline" onClick={continueToExperiment}>Continue</Button>
+        {experiment.decision === 'SCALE' && <Button onClick={scaleExperiment} disabled={scale.isPending}>{scale.isPending ? 'Scaling...' : 'Scale'}</Button>}
+        <Button onClick={() => setActionStep('confirmEnd')} disabled={scale.isPending}>End</Button>
+      </div>}
+      {actionError && <p className="text-sm text-red-300">{actionError}</p>}
+    </CardContent>
+  </Card>
+
+  const measurement = experiment.results.measurement
+  if (!measurement) return <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }} className="max-w-6xl space-y-5">
+    {actionPanel}
+    <Card className="border-dashed"><CardContent className="flex min-h-72 flex-col items-center justify-center text-center"><FileCheck2 className="text-muted" size={24} /><h1 className="mt-5 text-2xl font-semibold text-white">Measurement not available</h1><p className="mt-3 text-sm text-muted">This experiment has not produced a completed measurement yet.</p></CardContent></Card>
+  </motion.div>
+
   return <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }} className="max-w-6xl space-y-5">
     <VerdictBanner decision={experiment.decision} measurement={measurement} />
-    {isRunning && <Card className="border-emerald/20 bg-emerald/[0.035]">
-      <CardContent className="space-y-3 p-5">
-        {actionStep === 'confirmEnd' ? <>
-          <p className="text-xs leading-5 text-amber-200">Ending this experiment is irreversible. It will stop future scaling actions.</p>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <Button variant="outline" onClick={() => setActionStep('initial')}>Continue</Button>
-            <Button onClick={endExperiment} disabled={end.isPending}>{end.isPending ? 'Ending...' : 'End'}</Button>
-          </div>
-        </> : <div className="flex flex-col gap-2 sm:flex-row">
-          <Button variant="outline" onClick={continueToExperiment}>Continue</Button>
-          {experiment.decision === 'SCALE' && <Button onClick={scaleExperiment} disabled={scale.isPending}>{scale.isPending ? 'Scaling...' : 'Scale'}</Button>}
-          <Button onClick={() => setActionStep('confirmEnd')} disabled={scale.isPending}>End</Button>
-        </div>}
-        {actionError && <p className="text-sm text-red-300">{actionError}</p>}
-      </CardContent>
-    </Card>}
+    {actionPanel}
     <div className="grid gap-5 xl:grid-cols-[1.35fr_0.65fr]">
       <Card><CardHeader><div className="flex items-center gap-3"><BarChart3 size={17} className="text-emerald" /><div><p className="text-sm font-medium text-white">Control vs Treatment</p><p className="mt-1 text-xs text-muted">A direct view of the measured experiment outcomes.</p></div></div></CardHeader><CardContent><div className="h-[280px] w-full"><ResponsiveContainer width="100%" height="100%"><BarChart data={chartData(measurement)} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}><CartesianGrid stroke="rgba(255,255,255,0.07)" vertical={false} /><XAxis dataKey="metric" axisLine={false} tickLine={false} tick={{ fill: '#8b929e', fontSize: 11 }} /><YAxis axisLine={false} tickLine={false} tick={{ fill: '#8b929e', fontSize: 11 }} /><Tooltip contentStyle={{ background: '#151719', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, color: '#e7e9ec' }} /><Legend wrapperStyle={{ color: '#a4aab3', fontSize: 11 }} /><Bar dataKey="control" name="Control" fill="#69727f" radius={[4, 4, 0, 0]} /><Bar dataKey="treatment" name="Treatment" fill="#10b981" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer></div><p className="mt-3 text-[11px] leading-5 text-muted">Conversion rate is shown as a percentage. Monetary metrics are displayed in rupees.</p></CardContent></Card>
       <Card className="bg-emerald/[0.045]"><CardHeader><div className="flex items-center gap-3"><Scale size={17} className="text-emerald" /><p className="text-sm font-medium text-white">Incremental impact</p></div></CardHeader><CardContent className="space-y-6"><ImpactMetric label="Incremental revenue / eligible customer" value={formatMoney(measurement.incremental.incrementalRevenuePerEligibleCustomer)} /><ImpactMetric label="Revenue uplift" value={measurement.incremental.revenueUpliftPercent === null ? 'Not available' : `${measurement.incremental.revenueUpliftPercent.toFixed(1)}%`} /></CardContent></Card>
