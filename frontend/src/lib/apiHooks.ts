@@ -12,6 +12,7 @@ import {
   getAgentRun,
   getAuditLog,
   getExperiment,
+  getExperimentHistory,
   getLatestAgentRun,
   getOpportunities,
   getOpportunityRecommendation,
@@ -68,6 +69,11 @@ export function useExperiment(id: string | undefined): UseQueryResult<Experiment
     queryFn: () => getExperiment(id as string),
     enabled: Boolean(id),
   })
+}
+
+export function useExperimentHistory(): UseQueryResult<{ experiments: Experiment[] }> {
+  const sessionToken = typeof window === 'undefined' ? '' : localStorage.getItem('revora_session_token') || ''
+  return useQuery({ queryKey: ['experimentHistory', sessionToken], queryFn: getExperimentHistory })
 }
 
 export function useStartExperiment(): UseMutationResult<Experiment, Error, string> {

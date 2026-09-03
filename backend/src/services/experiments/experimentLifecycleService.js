@@ -20,6 +20,7 @@ function normalizeExperiment(experiment) {
   return {
     id: experiment._id.toString(),
     strategy: experiment.strategy,
+    baseProductId: experiment.baseProductId ? experiment.baseProductId.toString() : null,
     targetProductId: experiment.targetProductId ? experiment.targetProductId.toString() : null,
     status: experiment.status,
     controlCustomerIds: (experiment.controlCustomerIds || []).map((id) => id.toString()),
@@ -28,9 +29,22 @@ function normalizeExperiment(experiment) {
     endAt: experiment.endAt ? experiment.endAt.toISOString() : null,
     results: experiment.results || {},
     decision: experiment.decision,
+    scaleEvents: experiment.scaleEvents || [],
     createdAt: experiment.createdAt ? experiment.createdAt.toISOString() : null,
     updatedAt: experiment.updatedAt ? experiment.updatedAt.toISOString() : null,
   };
+}
+
+async function getCompletedExperiments(auth, limit = 50) {
+  const experiments = await Experiment.find({
+    status: 'completed',
+    ...ownershipFilter(auth),
+  })
+    .sort({ endAt: -1, updatedAt: -1 })
+    .limit(limit)
+    .lean();
+
+  return experiments.map(normalizeExperiment);
 }
 
 async function logLifecycleEvent({ action, status = 'SUCCESS', reason, experimentId, metadata = {}, auth }) {
@@ -340,5 +354,6 @@ module.exports = {
   getExperimentById,
   logLifecycleEvent,
   normalizeExperiment,
+  getCompletedExperiments,
   startExperiment,
 };

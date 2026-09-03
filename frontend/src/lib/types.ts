@@ -133,6 +133,7 @@ export interface ExperimentResults {
 export interface Experiment {
   id: string
   strategy: string
+  baseProductId?: string | null
   targetProductId: string | null
   status: string
   controlCustomerIds: string[]
@@ -141,6 +142,7 @@ export interface Experiment {
   endAt: string | null
   results: ExperimentResults
   decision: string
+  scaleEvents?: Array<{ scaledAt: string | null; addedControlCount: number; addedTreatmentCount: number; assignmentSeed: number; audienceSizeAfter: number }>
   createdAt: string | null
   updatedAt: string | null
 }

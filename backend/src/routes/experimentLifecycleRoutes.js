@@ -1,6 +1,7 @@
 const express = require('express');
 const {
 	getExperiment,
+	getCompletedExperiments,
 	startExperiment,
 	analyzeExperiment,
 	scaleExperiment,
@@ -9,6 +10,7 @@ const {
 
 const router = express.Router();
 
+router.get('/experiments/history', getCompletedExperiments);
 router.get('/experiments/:id', getExperiment);
 router.post('/experiments/:id/start', startExperiment);
 router.post('/experiments/:id/analyze', analyzeExperiment);

@@ -157,6 +157,10 @@ export function getExperiment(id: string): Promise<Experiment> {
   return request<Experiment>(`/experiments/${encodeURIComponent(id)}`)
 }
 
+export function getExperimentHistory(): Promise<{ experiments: Experiment[] }> {
+  return request<{ experiments: Experiment[] }>('/experiments/history')
+}
+
 export function startExperiment(id: string): Promise<Experiment> {
   return request<Experiment>(`/experiments/${encodeURIComponent(id)}/start`, { method: 'POST' })
 }

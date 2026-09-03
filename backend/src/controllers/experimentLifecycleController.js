@@ -1,5 +1,6 @@
 const {
   getExperimentById,
+  getCompletedExperiments: getCompletedExperimentsService,
   startExperiment: startExperimentService,
   analyzeExperiment: analyzeExperimentService,
   scaleExperiment: scaleExperimentService,
@@ -19,6 +20,15 @@ async function getExperiment(req, res) {
       success: false,
       error: error.message,
     });
+  }
+}
+
+async function getCompletedExperiments(req, res) {
+  try {
+    const experiments = await getCompletedExperimentsService(req.auth);
+    return res.status(200).json({ success: true, data: { experiments } });
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message });
   }
 }
 
@@ -104,6 +114,7 @@ async function endExperiment(req, res) {
 
 module.exports = {
   analyzeExperiment,
+  getCompletedExperiments,
   endExperiment,
   getExperiment,
   scaleExperiment,
