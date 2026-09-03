@@ -159,10 +159,6 @@ export function startExperiment(id: string): Promise<Experiment> {
   return request<Experiment>(`/experiments/${encodeURIComponent(id)}/start`, { method: 'POST' })
 }
 
-export function completeExperiment(id: string): Promise<Experiment> {
-  return request<Experiment>(`/experiments/${encodeURIComponent(id)}/complete`, { method: 'POST', body: JSON.stringify({}) })
-}
-
 export function analyzeExperiment(id: string): Promise<AnalyzeExperimentResponseData> {
   return request<AnalyzeExperimentResponseData>(`/experiments/${encodeURIComponent(id)}/analyze`, { method: 'POST' })
 }

@@ -6,7 +6,7 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardHeader } from '../components/ui/card'
-import { useAnalyzeExperiment, useCompleteExperiment, useCreatePaymentOrder, useExperiment, useStartExperiment, useVerifyPayment } from '../lib/apiHooks'
+import { useAnalyzeExperiment, useCreatePaymentOrder, useExperiment, useStartExperiment, useVerifyPayment } from '../lib/apiHooks'
 import type { Experiment, ExperimentProposal, ExperimentSummary, Guardrails } from '../lib/types'
 
 declare global {
@@ -74,7 +74,6 @@ export function ExperimentPage() {
   const analyze = useAnalyzeExperiment()
   const createOrder = useCreatePaymentOrder()
   const verify = useVerifyPayment()
-  const complete = useCompleteExperiment()
   const [analysisError, setAnalysisError] = useState<string | null>(null)
   const [paidCustomers, setPaidCustomers] = useState<Record<string, boolean>>({})
   const [failedCustomers, setFailedCustomers] = useState<Record<string, boolean>>({})
@@ -143,10 +142,6 @@ export function ExperimentPage() {
   const controlSize = controlCustomers.length
   const treatmentSize = treatmentCustomers.length
   const total = controlSize + treatmentSize || 1
-  const hasControlPayment = controlCustomers.some((id) => paidCustomers[`control:${id}`])
-  const hasTreatmentPayment = treatmentCustomers.some((id) => paidCustomers[`treatment:${id}`])
-  const canComplete = status === 'running' && hasControlPayment && hasTreatmentPayment
-
   const startExperiment = () => start.mutate(experimentId)
   const analyzeExperiment = () => {
     setAnalysisError(null)
@@ -195,13 +190,10 @@ export function ExperimentPage() {
       toast.error(error instanceof Error ? error.message : 'Unable to create payment order')
     }
   }
-  const completeExperiment = () => complete.mutate(experimentId, { onSuccess: (result) => navigate(`/results/${experimentId}`, { state: { experiment: result, experimentId } }) })
-
   return <><Toaster theme="dark" position="bottom-right" /><motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }} className="max-w-5xl space-y-6"><div><div className="mb-4 flex items-center gap-3 text-xs font-medium uppercase tracking-[0.16em] text-emerald"><FlaskConical size={15} />Experiment design</div><div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><h1 className="text-3xl font-semibold tracking-[-0.045em] text-white sm:text-4xl">Verify the experiment.</h1><p className="mt-3 max-w-xl text-sm leading-6 text-muted">A guarded proposal for the opportunity you just discovered.</p></div><div className="flex flex-wrap items-center gap-3"><StatusBadge status={status} />{status === 'running' && <Button onClick={analyzeExperiment} disabled={analyze.isPending}>{analyze.isPending ? 'Analyzing...' : 'Analyze'}</Button>}</div></div>{analysisError && <div className="mt-4 rounded-lg border border-amber-500/25 bg-amber-500/[0.06] px-4 py-3 text-sm text-amber-200">{analysisError}</div>}</div>
     {guardrails && <Card><CardHeader><div className="flex items-center gap-3"><ShieldCheck size={17} className="text-emerald" /><div><p className="text-sm font-medium text-white">Guardrail verification</p><p className="mt-1 text-xs text-muted">Every check must pass before exposure begins.</p></div></div></CardHeader><CardContent className="space-y-3">{guardrails.checks.map((check, index) => <motion.div key={check.name} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.25, delay: index * 0.1 }} className="flex items-start gap-3 rounded-lg border border-line bg-white/[0.018] p-4"><div className={check.passed ? 'mt-0.5 text-emerald' : 'mt-0.5 text-red-300'}>{check.passed ? <Check size={16} /> : <X size={16} />}</div><div><p className="text-sm font-medium text-slate-200">{titleCase(check.name)}</p><p className="mt-1 text-xs leading-5 text-muted">{check.reason}</p></div><span className={check.passed ? 'ml-auto text-[10px] uppercase tracking-[0.12em] text-emerald' : 'ml-auto text-[10px] uppercase tracking-[0.12em] text-red-300'}>{check.passed ? 'Passed' : 'Blocked'}</span></motion.div>)}</CardContent></Card>}
     {blocked ? <div className="rounded-xl border border-amber-500/25 bg-amber-500/[0.06] p-5 text-sm text-amber-200"><p className="font-medium">Experiment blocked by guardrails</p><p className="mt-2 leading-6 text-amber-100/70">{guardrails?.checks.find((check) => !check.passed)?.reason || 'One or more guardrail checks failed.'}</p></div> : <><Card><CardHeader><p className="text-sm font-medium text-white">Audience split</p><p className="mt-1 text-xs text-muted">The proposed audience is evenly divided for a clean comparison.</p></CardHeader><CardContent><div className="grid gap-4 sm:grid-cols-2"><AudienceStat label="Control" value={controlSize} tone="slate" /><AudienceStat label="Treatment" value={treatmentSize} tone="emerald" /></div><div className="mt-6 h-3 overflow-hidden rounded-full bg-white/[0.07]"><motion.div initial={{ width: 0 }} animate={{ width: `${(controlSize / total) * 100}%` }} transition={{ duration: 0.6 }} className="inline-block h-full bg-slate-500" /><motion.div initial={{ width: 0 }} animate={{ width: `${(treatmentSize / total) * 100}%` }} transition={{ duration: 0.6, delay: 0.1 }} className="inline-block h-full bg-emerald" /></div><div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs text-muted">Strategy: <span className="text-slate-200">{experiment?.strategy || proposal?.strategy || 'CROSS_SELL'}</span></p><Button onClick={startExperiment} disabled={start.isPending || status === 'running' || status === 'completed'}>{start.isPending ? 'Starting...' : status === 'running' ? 'Experiment running' : status === 'completed' ? 'Experiment completed' : 'Start Experiment'}<Play size={15} /></Button></div>{start.isError && <p className="mt-4 text-sm text-red-300">{start.error.message}</p>}</CardContent></Card>
       {status === 'running' && <PaymentPanel controlCustomers={controlCustomers} treatmentCustomers={treatmentCustomers} paidCustomers={paidCustomers} failedCustomers={failedCustomers} activeCustomer={activeCustomer} onPay={simulatePayment} />}
-      {status === 'running' && <Card className="border-emerald/20 bg-emerald/[0.035]"><CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-sm font-medium text-white">Ready for a verdict?</p><p className="mt-1 text-xs leading-5 text-muted">Verify at least one payment in each group to unlock measurement.</p></div><Button onClick={completeExperiment} disabled={!canComplete || complete.isPending}>{complete.isPending ? 'Measuring...' : 'Complete Experiment & Get Verdict'}<Check size={15} /></Button></CardContent>{complete.isError && <p className="px-5 pb-5 text-sm text-red-300">{complete.error.message}</p>}</Card>}
     </>}</motion.div></>
 }
 

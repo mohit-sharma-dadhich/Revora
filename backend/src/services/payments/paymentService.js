@@ -473,6 +473,7 @@ module.exports = {
   createExperimentOrder,
   handlePaymentCapturedWebhook,
   handlePaymentFailedWebhook,
+  validateExperimentCustomerAndProduct,
   verifyExperimentPayment,
   verifyWebhookSignature,
 };

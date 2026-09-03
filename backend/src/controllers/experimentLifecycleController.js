@@ -1,7 +1,6 @@
 const {
   getExperimentById,
   startExperiment: startExperimentService,
-  completeExperimentWithMeasurement,
   analyzeExperiment: analyzeExperimentService,
   scaleExperiment: scaleExperimentService,
   endExperiment: endExperimentService,
@@ -41,24 +40,6 @@ async function startExperiment(req, res) {
   }
 }
 
-async function completeExperiment(req, res) {
-  try {
-    const experiment = await completeExperimentWithMeasurement(req.params.id, req.body || {}, req.auth);
-
-    return res.status(200).json({
-      success: true,
-      data: experiment,
-    });
-  } catch (error) {
-    const statusCode = error.message === 'Experiment not found.' ? 404 : 400;
-
-    return res.status(statusCode).json({
-      success: false,
-      error: error.message,
-    });
-  }
-}
-
 async function analyzeExperiment(req, res) {
   try {
     const experiment = await analyzeExperimentService(req.params.id, req.auth);
@@ -68,7 +49,7 @@ async function analyzeExperiment(req, res) {
       data: experiment,
     });
   } catch (error) {
-    if (error.message.startsWith('Need at least 1 new completed order')) {
+    if (error.message.startsWith('Need at least 1 new paid experiment order')) {
       return res.status(429).json({
         success: false,
         error: error.message,
@@ -123,7 +104,6 @@ async function endExperiment(req, res) {
 
 module.exports = {
   analyzeExperiment,
-  completeExperiment,
   endExperiment,
   getExperiment,
   scaleExperiment,

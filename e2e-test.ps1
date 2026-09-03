@@ -95,7 +95,7 @@ Test "Start Experiment" {
   Write-Host "    Status: $($r.data.status)" -ForegroundColor Cyan
 }
 
-# Test 10a: Create test paid orders for experiment completion
+# Test 10a: Create test paid orders for experiment analysis
 Test "Create Test Orders for Experiment" {
   # Get control and treatment customer IDs
   $controlId = $experiment.controlCustomerIds[0]
@@ -134,9 +134,16 @@ Test "Create Test Orders for Experiment" {
   if (-not $treatmentResp.data.orderId) { throw "Failed to create treatment order" }
 }
 
-# Test 10: Complete Experiment
-Test "Complete Experiment" {
-  $r = Invoke-WebRequest -Uri "$baseUrl/experiments/$($experiment.id)/complete" -Method Post -Headers @{Authorization="Bearer $token"; 'Content-Type'='application/json'} -Body '{}' -UseBasicParsing -ErrorAction Stop | ConvertFrom-Json
+# Test 10: Analyze Experiment
+Test "Analyze Experiment" {
+  $r = Invoke-WebRequest -Uri "$baseUrl/experiments/$($experiment.id)/analyze" -Method Post -Headers @{Authorization="Bearer $token"; 'Content-Type'='application/json'} -Body '{}' -UseBasicParsing -ErrorAction Stop | ConvertFrom-Json
+  if (-not $r.data.measurement) { throw "Experiment was not analyzed" }
+  Write-Host "    Status: $($r.data.experiment.status), Decision: $($r.data.decision)" -ForegroundColor Cyan
+}
+
+# Test 10b: End Experiment
+Test "End Experiment" {
+  $r = Invoke-WebRequest -Uri "$baseUrl/experiments/$($experiment.id)/end" -Method Post -Headers @{Authorization="Bearer $token"; 'Content-Type'='application/json'} -Body '{}' -UseBasicParsing -ErrorAction Stop | ConvertFrom-Json
   if ($r.data.status -ne "completed") { throw "Experiment not completed" }
   Write-Host "    Final Status: $($r.data.status), Decision: $($r.data.decision)" -ForegroundColor Cyan
 }

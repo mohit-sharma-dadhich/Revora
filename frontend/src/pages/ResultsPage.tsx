@@ -14,7 +14,7 @@ type ResultsRouteState = { experimentId?: string; experiment?: Experiment }
 
 function ResultEmptyState() {
   const navigate = useNavigate()
-  return <Card className="border-dashed"><CardContent className="flex min-h-80 flex-col items-center justify-center text-center"><div className="grid size-12 place-items-center rounded-xl border border-line bg-white/[0.04] text-muted"><BarChart3 size={21} /></div><h1 className="mt-5 text-2xl font-semibold text-white">No results to show</h1><p className="mt-3 max-w-md text-sm leading-6 text-muted">Complete an experiment from Opportunity to see its measured verdict here.</p><Button variant="outline" className="mt-6" onClick={() => navigate('/opportunity')}><RotateCcw size={16} />Back to Opportunity</Button></CardContent></Card>
+  return <Card className="border-dashed"><CardContent className="flex min-h-80 flex-col items-center justify-center text-center"><div className="grid size-12 place-items-center rounded-xl border border-line bg-white/[0.04] text-muted"><BarChart3 size={21} /></div><h1 className="mt-5 text-2xl font-semibold text-white">No results to show</h1><p className="mt-3 max-w-md text-sm leading-6 text-muted">Analyze a running experiment from Opportunity to see its measured verdict here.</p><Button variant="outline" className="mt-6" onClick={() => navigate('/opportunity')}><RotateCcw size={16} />Back to Opportunity</Button></CardContent></Card>
 }
 
 export function ResultsPage() {
@@ -29,12 +29,12 @@ export function ResultsPage() {
   const [actionStep, setActionStep] = useState<'initial' | 'confirmEnd'>('initial')
   const [endedExperiment, setEndedExperiment] = useState<Experiment | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
-  const experiment = endedExperiment || routeState.experiment || experimentQuery.data
+  const experiment = endedExperiment || experimentQuery.data || routeState.experiment
   const [rawOpen, setRawOpen] = useState(false)
 
   if (experimentId && experimentQuery.isLoading && !experiment) return <Card><CardContent className="min-h-72 space-y-4 p-6"><div className="h-5 w-32 animate-pulse rounded bg-white/[0.07]" /><div className="h-10 w-56 animate-pulse rounded bg-white/[0.07]" /><div className="h-4 w-96 max-w-full animate-pulse rounded bg-white/[0.07]" /></CardContent></Card>
+  if (experimentQuery.isError && !endedExperiment && !experimentQuery.data) return <Card className="border-red-500/20"><CardContent className="p-6"><p className="text-sm text-red-300">Unable to load experiment results</p><p className="mt-2 text-sm text-muted">{experimentQuery.error.message}</p></CardContent></Card>
   if (!experiment) return <ResultEmptyState />
-  if (experimentQuery.isError && !routeState.experiment) return <Card className="border-red-500/20"><CardContent className="p-6"><p className="text-sm text-red-300">Unable to load experiment results</p><p className="mt-2 text-sm text-muted">{experimentQuery.error.message}</p></CardContent></Card>
 
   const isRunning = experiment.status === 'running'
   const continueToExperiment = () => navigate(`/experiment/${experiment.id}`)

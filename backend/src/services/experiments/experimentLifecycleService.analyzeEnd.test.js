@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const Experiment = require('../../models/Experiment');
 const Order = require('../../models/Order');
 const AuditLog = require('../../models/AuditLog');
-const { analyzeExperiment } = require('./experimentLifecycleService');
+const { analyzeExperiment, endExperiment, startExperiment } = require('./experimentLifecycleService');
 
 const experimentId = 'experiment-1';
 const controlCustomerIds = ['control-1', 'control-2', 'control-3', 'control-4'];
@@ -15,6 +15,7 @@ const originalMethods = {
   experimentFindOne: Experiment.findOne,
   experimentFindById: Experiment.findById,
   orderCountDocuments: Order.countDocuments,
+  orderExists: Order.exists,
   orderFind: Order.find,
   auditCreate: AuditLog.create,
 };
@@ -65,7 +66,7 @@ function addCompletedOrder(customerId, createdAt) {
   });
 }
 
-function addPaidExperimentOrder(customerId, experimentGroup) {
+function addPaidExperimentOrder(customerId, experimentGroup, createdAt = new Date(startAt.getTime() + 1000)) {
   paidExperimentOrders.push({
     experimentId,
     experimentGroup,
@@ -73,6 +74,7 @@ function addPaidExperimentOrder(customerId, experimentGroup) {
     status: 'paid',
     customerId,
     amount: 1000,
+    createdAt: new Date(createdAt),
   });
 }
 
@@ -83,11 +85,11 @@ function seedInitialEvidence() {
 
   controlCustomerIds.slice(0, 3).forEach((customerId, index) => {
     addCompletedOrder(customerId, new Date(startAt.getTime() + (index + 1) * 1000));
-    addPaidExperimentOrder(customerId, 'control');
+    addPaidExperimentOrder(customerId, 'control', new Date(startAt.getTime() + (index + 1) * 1000));
   });
   treatmentCustomerIds.slice(0, 4).forEach((customerId, index) => {
     addCompletedOrder(customerId, new Date(startAt.getTime() + (index + 4) * 1000));
-    addPaidExperimentOrder(customerId, 'treatment');
+    addPaidExperimentOrder(customerId, 'treatment', new Date(startAt.getTime() + (index + 4) * 1000));
   });
 }
 
@@ -100,11 +102,31 @@ function installModelStubs() {
   Experiment.findById = () => ({
     lean: async () => experiment,
   });
-  Order.countDocuments = async (query) => completedOrders.filter((order) => (
-    matchesCustomer(query, order.customerId)
+  Order.countDocuments = async (query) => {
+    const matching = completedOrders.filter((order) => (
+      matchesCustomer(query, order.customerId)
+      && order.status === query.status
+      && order.createdAt > query.createdAt.$gt
+    ));
+
+    const paidMatching = paidExperimentOrders.filter((order) => (
+      String(order.experimentId) === String(query.experimentId)
+      && order.experimentGroup === query.experimentGroup
+      && order.source === query.source
+      && order.status === query.status
+      && order.customerId && query.customerId && query.customerId.$in.some((customerId) => String(customerId) === String(order.customerId))
+      && order.createdAt > query.createdAt.$gt
+    ));
+
+    return matching.length + paidMatching.length;
+  };
+  Order.exists = async (query) => paidExperimentOrders.some((order) => (
+    String(order.experimentId) === String(query.experimentId)
+    && order.experimentGroup === query.experimentGroup
+    && order.source === query.source
     && order.status === query.status
-    && order.createdAt > query.createdAt.$gt
-  )).length;
+    && order.customerId && query.customerId && query.customerId.$in.some((customerId) => String(customerId) === String(order.customerId))
+  ));
   Order.find = (query) => ({
     lean: async () => paidExperimentOrders.filter((order) => (
       order.experimentId === query.experimentId
@@ -122,6 +144,7 @@ function restoreModelMethods() {
   Experiment.findOne = originalMethods.experimentFindOne;
   Experiment.findById = originalMethods.experimentFindById;
   Order.countDocuments = originalMethods.orderCountDocuments;
+  Order.exists = originalMethods.orderExists;
   Order.find = originalMethods.orderFind;
   AuditLog.create = originalMethods.auditCreate;
 }
@@ -145,7 +168,31 @@ test('analyzeExperiment rejects a draft experiment', async () => {
   );
 });
 
-test('first analysis measures all completed control and treatment evidence and sets lastAnalyzedAt', async () => {
+test('startExperiment rejects a running experiment through the invalid transition path', async () => {
+  await assert.rejects(
+    startExperiment(experimentId, null),
+    /Invalid experiment state transition from running to running\./,
+  );
+
+  assert.equal(auditEvents.at(-1).action, 'EXPERIMENT_START_REJECTED');
+  assert.equal(auditEvents.at(-1).status, 'BLOCKED');
+});
+
+test('endExperiment completes after logging a failed best-effort analysis', async () => {
+  Experiment.findById = () => ({
+    lean: async () => null,
+  });
+
+  const result = await endExperiment(experimentId, null);
+
+  assert.equal(result.status, 'completed');
+  assert.ok(experiment.endAt instanceof Date);
+  assert.equal(auditEvents.at(-2).action, 'EXPERIMENT_END_STALE_DECISION');
+  assert.equal(auditEvents.at(-2).status, 'FAILED');
+  assert.equal(auditEvents.at(-1).action, 'EXPERIMENT_ENDED');
+});
+
+test('first analysis measures all paid experiment evidence and sets lastAnalyzedAt', async () => {
   const result = await analyzeExperiment(experimentId, null);
 
   assert.equal(result.measurement.control.convertedCustomerCount, 3);
@@ -168,11 +215,45 @@ test('analysis is rate limited when neither group has new orders and preserves s
   assert.deepEqual(experiment.results, previousResults);
 });
 
+test('paid experiment orders count as new evidence even without historical completed orders', async () => {
+  completedOrders = [];
+  paidExperimentOrders = [];
+  addPaidExperimentOrder('control-1', 'control');
+  addPaidExperimentOrder('treatment-1', 'treatment');
+  experiment.lastAnalyzedAt = new Date('2026-01-01T00:00:00.000Z');
+  experiment.results = { existing: true };
+
+  const result = await analyzeExperiment(experimentId, null);
+
+  assert.equal(result.measurement.control.convertedCustomerCount, 1);
+  assert.equal(result.measurement.treatment.convertedCustomerCount, 1);
+  assert.equal(auditEvents.at(-1).action, 'EXPERIMENT_ANALYZED');
+});
+
+test('paid orders from another experiment do not satisfy the analysis gate', async () => {
+  completedOrders = [];
+  paidExperimentOrders = [{
+    experimentId: 'another-experiment',
+    experimentGroup: 'control',
+    source: 'experiment',
+    status: 'paid',
+    customerId: 'control-1',
+    amount: 1000,
+    createdAt: new Date(startAt.getTime() + 1000),
+  }];
+  experiment.lastAnalyzedAt = new Date(startAt);
+
+  await assert.rejects(
+    analyzeExperiment(experimentId, null),
+    /control: 0 new, treatment: 0 new/,
+  );
+});
+
 test('one new control order is enough and measurement uses the new cumulative total', async () => {
   await analyzeExperiment(experimentId, null);
   const newCreatedAt = new Date(experiment.lastAnalyzedAt.getTime() + 1000);
   addCompletedOrder('control-4', newCreatedAt);
-  addPaidExperimentOrder('control-4', 'control');
+  addPaidExperimentOrder('control-4', 'control', newCreatedAt);
 
   const result = await analyzeExperiment(experimentId, null);
 
@@ -183,9 +264,9 @@ test('one new control order is enough and measurement uses the new cumulative to
 test('analysis is rate limited again after the successful control-only analysis', async () => {
   await analyzeExperiment(experimentId, null);
   addCompletedOrder('control-4', new Date(experiment.lastAnalyzedAt.getTime() + 1000));
-  addPaidExperimentOrder('control-4', 'control');
+  addPaidExperimentOrder('control-4', 'control', new Date(experiment.lastAnalyzedAt.getTime() + 1000));
   await analyzeExperiment(experimentId, null);
-  completedOrders.at(-1).createdAt = new Date(experiment.lastAnalyzedAt);
+  paidExperimentOrders.at(-1).createdAt = new Date(experiment.lastAnalyzedAt);
 
   await assert.rejects(
     analyzeExperiment(experimentId, null),
@@ -195,11 +276,14 @@ test('analysis is rate limited again after the successful control-only analysis'
 
 test('one new treatment order is enough for the next analysis', async () => {
   await analyzeExperiment(experimentId, null);
-  addCompletedOrder('control-4', new Date(experiment.lastAnalyzedAt.getTime() + 1000));
-  addPaidExperimentOrder('control-4', 'control');
+  const controlCreatedAt = new Date(experiment.lastAnalyzedAt.getTime() + 1000);
+  addCompletedOrder('control-4', controlCreatedAt);
+  addPaidExperimentOrder('control-4', 'control', controlCreatedAt);
   await analyzeExperiment(experimentId, null);
 
-  addCompletedOrder('treatment-4', new Date(experiment.lastAnalyzedAt.getTime() + 1000));
+  const treatmentCreatedAt = new Date(experiment.lastAnalyzedAt.getTime() + 1000);
+  addCompletedOrder('treatment-4', treatmentCreatedAt);
+  addPaidExperimentOrder('treatment-4', 'treatment', treatmentCreatedAt);
   const result = await analyzeExperiment(experimentId, null);
 
   assert.equal(result.measurement.control.convertedCustomerCount, 4);

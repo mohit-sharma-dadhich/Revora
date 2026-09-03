@@ -144,6 +144,57 @@ test('scaling beyond the exposure cap throws without changing audience groups', 
   assert.equal(experiment.lastScaledAt, null);
 });
 
+test('zero exposure cap is respected without changing audience groups', async () => {
+  experiment.results.maxExposurePercent = 0;
+  const controlBefore = experiment.controlCustomerIds.slice();
+  const treatmentBefore = experiment.treatmentCustomerIds.slice();
+
+  await assert.rejects(
+    scaleExperiment(experimentId.toString(), { additionalAudienceSize: 1 }, null),
+    /Scaling would exceed the maximum exposure cap\./,
+  );
+
+  assert.deepEqual(experiment.controlCustomerIds, controlBefore);
+  assert.deepEqual(experiment.treatmentCustomerIds, treatmentBefore);
+  assert.equal(experiment.scaleEvents.length, 0);
+});
+
+test('scaling with no remaining eligible customers throws without recording an event', async () => {
+  experiment.controlCustomerIds = eligibleCustomerIds.slice(0, 3);
+  experiment.treatmentCustomerIds = eligibleCustomerIds.slice(3);
+  const controlBefore = experiment.controlCustomerIds.slice();
+  const treatmentBefore = experiment.treatmentCustomerIds.slice();
+
+  await assert.rejects(
+    scaleExperiment(experimentId.toString(), { additionalAudienceSize: 1 }, null),
+    /No eligible customers remain for scaling\./,
+  );
+
+  assert.deepEqual(experiment.controlCustomerIds, controlBefore);
+  assert.deepEqual(experiment.treatmentCustomerIds, treatmentBefore);
+  assert.equal(experiment.scaleEvents.length, 0);
+  assert.equal(experiment.lastScaledAt, null);
+});
+
+test('repeated scaling reuses the seed without duplicating assignments', async () => {
+  const firstScale = await scaleExperiment(experimentId.toString(), { additionalAudienceSize: 2 }, null);
+  const assignedAfterFirstScale = new Set([
+    ...firstScale.controlCustomerIds,
+    ...firstScale.treatmentCustomerIds,
+  ]);
+
+  const secondScale = await scaleExperiment(experimentId.toString(), { additionalAudienceSize: 2 }, null);
+  const assignedAfterSecondScale = [
+    ...secondScale.controlCustomerIds,
+    ...secondScale.treatmentCustomerIds,
+  ];
+
+  assert.equal(new Set(assignedAfterSecondScale).size, assignedAfterSecondScale.length);
+  assert.equal(assignedAfterSecondScale.length, assignedAfterFirstScale.size + 2);
+  assert.equal(experiment.scaleEvents.length, 2);
+  assert.equal(experiment.scaleEvents[0].assignmentSeed, experiment.scaleEvents[1].assignmentSeed);
+});
+
 test('successful scaling appends one scale event with the added customer count', async () => {
   const assignedBefore = experiment.controlCustomerIds.length + experiment.treatmentCustomerIds.length;
 

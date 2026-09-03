@@ -8,7 +8,7 @@ function roundValue(value) {
   return Number(Number(value).toFixed(4));
 }
 
-async function getGroupMetrics({ experimentId, group, customerIds = [] }) {
+async function getGroupMetrics({ experimentId, group, customerIds = [], endAt = null }) {
   if (!experimentId) {
     throw new Error('Experiment identifier is required.');
   }
@@ -18,11 +18,15 @@ async function getGroupMetrics({ experimentId, group, customerIds = [] }) {
   }
 
   const audienceSize = Array.isArray(customerIds) ? customerIds.length : 0;
-  const orders = await Order.find({
+  const orderFilter = {
     experimentId,
     experimentGroup: group,
     source: 'experiment',
-  }).lean();
+    customerId: { $in: customerIds },
+  };
+  if (endAt) orderFilter.createdAt = { $lte: endAt };
+
+  const orders = await Order.find(orderFilter).lean();
 
   const paidOrders = orders.filter((order) => order.status === 'paid');
   const convertedCustomerIds = new Set(
@@ -96,12 +100,14 @@ async function measureExperiment(experimentId) {
     experimentId,
     group: 'control',
     customerIds: controlCustomerIds,
+    endAt: experiment.endAt,
   });
 
   const treatmentMetrics = await getGroupMetrics({
     experimentId,
     group: 'treatment',
     customerIds: treatmentCustomerIds,
+    endAt: experiment.endAt,
   });
 
   return {

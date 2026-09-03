@@ -1,5 +1,5 @@
 const Order = require('../models/Order');
-const { createExperimentOrder, verifyExperimentPayment } = require('../services/payments/paymentService');
+const { createExperimentOrder, validateExperimentCustomerAndProduct, verifyExperimentPayment } = require('../services/payments/paymentService');
 const { ownershipFilter } = require('../utils/ownership');
 
 async function createOrder(req, res) {
@@ -55,35 +55,32 @@ async function verifyPayment(req, res) {
 
 async function testCreateOrder(req, res) {
   try {
-    const {
-      customerId,
-      productId,
-      productIds,
-      experimentId,
-      experimentGroup,
-      source,
-      status,
-      amount,
-    } = req.body || {};
+    const { customerId, experimentId } = req.body || {};
 
-    if (!customerId || (!productId && (!Array.isArray(productIds) || productIds.length === 0)) || !experimentId) {
-      throw new Error('customerId, productIds, and experimentId are required');
+    if (req.auth?.mode !== 'test') {
+      throw new Error('Test orders require a test session.');
     }
 
-    const normalizedProductIds = Array.isArray(productIds)
-      ? productIds
-      : [productId];
-
-    const normalizedAmount = Number.isFinite(Number(amount)) ? Math.round(Number(amount)) : 1000;
+    const { experiment, experimentGroup, baseProductId, targetProductId, baseProduct, targetProduct } = await validateExperimentCustomerAndProduct({
+      experimentId,
+      customerId,
+      auth: req.auth,
+    });
+    const normalizedProductIds = experimentGroup === 'control'
+      ? [baseProductId]
+      : [baseProductId, targetProductId];
+    const amount = experimentGroup === 'control'
+      ? baseProduct.price
+      : baseProduct.price + targetProduct.price;
 
     const order = new Order({
       customerId,
       productIds: normalizedProductIds,
       experimentId,
-      experimentGroup: experimentGroup || 'control',
-      source: source || 'experiment',
-      status: status || 'paid',
-      amount: normalizedAmount,
+      experimentGroup,
+      source: 'experiment',
+      status: 'paid',
+      amount,
       ...(req.auth ? { ...ownershipFilter(req.auth), expiresAt: req.auth.mode === 'test' ? req.auth.expiresAt : null } : {}),
     });
 

@@ -6,8 +6,7 @@ import {
 } from '@tanstack/react-query'
 import {
   analyzeExperiment,
-  completeExperiment,
-    endExperiment,
+  endExperiment,
   createPaymentOrder,
   getAgentRun,
   getAuditLog,
@@ -69,10 +68,6 @@ export function useExperiment(id: string | undefined): UseQueryResult<Experiment
 
 export function useStartExperiment(): UseMutationResult<Experiment, Error, string> {
   return useMutation({ mutationFn: startExperiment })
-}
-
-export function useCompleteExperiment(): UseMutationResult<Experiment, Error, string> {
-  return useMutation({ mutationFn: completeExperiment })
 }
 
 export function useAnalyzeExperiment(): UseMutationResult<AnalyzeExperimentResponseData, ApiError, string> {
