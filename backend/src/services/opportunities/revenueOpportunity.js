@@ -55,6 +55,8 @@ async function getRankedOpportunitiesWithDiagnostics({
   const {
     pairResults: affinityResults,
     usedPrivateDataOnly,
+    productCount,
+    eligibleBaseProductCount,
     audienceBlocked,
     bestUnqualifiedAffinity,
     bestUnqualifiedBaseCustomers,
@@ -95,6 +97,11 @@ async function getRankedOpportunitiesWithDiagnostics({
   const ranked = validOpportunities.slice(0, limit);
 
   const diagnostic = {
+    minBaseCustomers,
+    minAffinity,
+    productCount,
+    eligibleBaseProductCount,
+    pairCount: affinityResults.length,
     audienceBlocked,
     bestUnqualifiedAffinity,
     bestUnqualifiedBaseCustomers,

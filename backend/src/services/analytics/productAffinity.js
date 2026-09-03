@@ -98,6 +98,8 @@ async function getProductAffinity({ minBaseCustomers = MIN_BASE_CUSTOMERS, minAf
   return {
     pairResults: sortedPairResults,
     usedPrivateDataOnly: hasPrivateData,
+    productCount: productIds.length,
+    eligibleBaseProductCount,
     audienceBlocked: productIds.length > 0 && eligibleBaseProductCount === 0,
     bestUnqualifiedAffinity: bestUnqualifiedPair ? bestUnqualifiedPair.affinity : null,
     bestUnqualifiedBaseCustomers: bestUnqualifiedPair ? bestUnqualifiedPair.baseCustomerCount : null,

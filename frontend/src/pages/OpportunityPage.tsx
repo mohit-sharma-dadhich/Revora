@@ -19,21 +19,28 @@ function OpportunitySkeleton() {
 
 interface EmptyOpportunityProps {
   usedPrivateDataOnly: boolean
+  productCount: number
+  eligibleBaseProductCount: number
+  pairCount: number
   audienceBlocked: boolean
   bestUnqualifiedAffinity: number | null
+  bestUnqualifiedBaseCustomers: number | null
+  minAffinity: number
   minBaseCustomers: number
 }
 
-function EmptyOpportunity({ usedPrivateDataOnly, audienceBlocked, bestUnqualifiedAffinity, minBaseCustomers }: EmptyOpportunityProps) {
-  const message = !usedPrivateDataOnly
-    ? 'Upload your own data to see opportunities specific to your business'
-    : audienceBlocked
-      ? `None of your products have ${minBaseCustomers}+ customers yet \u2014 import more order history to enable discovery`
-      : bestUnqualifiedAffinity !== null
-        ? `Your strongest product pair reached ${formatPercent(bestUnqualifiedAffinity)} co-purchase overlap \u2014 below the 65% threshold needed to call it a reliable opportunity`
-        : 'There is no qualified cross-sell opportunity in the current evidence set.'
+function EmptyOpportunity({ usedPrivateDataOnly, productCount, eligibleBaseProductCount, pairCount, audienceBlocked, bestUnqualifiedAffinity, bestUnqualifiedBaseCustomers, minAffinity, minBaseCustomers }: EmptyOpportunityProps) {
+  const reasons = !usedPrivateDataOnly
+    ? ['Upload your own completed order history to discover opportunities specific to your business.']
+    : [
+        ...(productCount === 0 ? ['No products were found in the uploaded data.'] : []),
+        ...(audienceBlocked ? [`No product has ${minBaseCustomers}+ completed customers, so there is not enough audience data.`] : []),
+        ...(pairCount === 0 && eligibleBaseProductCount > 0 ? ['There are not enough distinct products to form a cross-sell pair.'] : []),
+        ...(bestUnqualifiedAffinity !== null ? [`The strongest pair reached ${formatPercent(bestUnqualifiedAffinity)} overlap with ${bestUnqualifiedBaseCustomers ?? 0} base customers, below the ${formatPercent(minAffinity)} threshold.`] : []),
+        ...(productCount > 0 && pairCount > 0 && bestUnqualifiedAffinity === null && !audienceBlocked ? ['No product pair met the required affinity threshold.'] : []),
+      ]
 
-  return <Card className="border-dashed"><CardContent className="flex min-h-72 flex-col items-center justify-center text-center"><div className="grid size-12 place-items-center rounded-xl border border-line bg-white/[0.04] text-muted"><Target size={21} /></div><h1 className="mt-5 text-2xl font-semibold text-white">No opportunity found</h1><p className="mt-3 max-w-md text-sm leading-6 text-muted">{message}</p></CardContent></Card>
+  return <Card className="border-dashed"><CardContent className="flex min-h-72 flex-col items-center justify-center text-center"><div className="grid size-12 place-items-center rounded-xl border border-line bg-white/[0.04] text-muted"><Target size={21} /></div><h1 className="mt-5 text-2xl font-semibold text-white">No opportunity found</h1><div className="mt-4 w-full max-w-xl text-left"><p className="text-xs font-medium uppercase tracking-[0.14em] text-muted">Why no opportunity?</p><ul className="mt-3 space-y-2">{reasons.map((reason) => <li key={reason} className="flex gap-2 text-sm leading-6 text-muted"><span className="mt-2 size-1.5 shrink-0 rounded-full bg-amber-300" />{reason}</li>)}</ul></div></CardContent></Card>
 }
 
 export function OpportunityPage() {
@@ -62,9 +69,14 @@ export function OpportunityPage() {
   if (query.isError) return <Card className="border-red-500/20"><CardContent className="p-6"><p className="text-sm text-red-300">Unable to load opportunity</p><p className="mt-2 text-sm text-muted">{query.error.message}</p></CardContent></Card>
   if (!opportunity) return <EmptyOpportunity
     usedPrivateDataOnly={data?.usedPrivateDataOnly ?? false}
+    productCount={data?.diagnostic?.productCount ?? 0}
+    eligibleBaseProductCount={data?.diagnostic?.eligibleBaseProductCount ?? 0}
+    pairCount={data?.diagnostic?.pairCount ?? 0}
     audienceBlocked={data?.diagnostic?.audienceBlocked ?? false}
     bestUnqualifiedAffinity={data?.diagnostic?.bestUnqualifiedAffinity ?? null}
-    minBaseCustomers={20}
+    bestUnqualifiedBaseCustomers={data?.diagnostic?.bestUnqualifiedBaseCustomers ?? null}
+    minAffinity={data?.diagnostic?.minAffinity ?? 0.65}
+    minBaseCustomers={data?.diagnostic?.minBaseCustomers ?? 20}
   />
 
   const handleProposalSuccess = (result: any) => {

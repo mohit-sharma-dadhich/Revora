@@ -72,6 +72,11 @@ async function getOpportunityRecommendation(auth) {
   let opportunity = null;
   let usedPrivateDataOnly = false;
   let diagnostic = {
+    minBaseCustomers: 20,
+    minAffinity: 0.65,
+    productCount: 0,
+    eligibleBaseProductCount: 0,
+    pairCount: 0,
     audienceBlocked: false,
     bestUnqualifiedAffinity: null,
     bestUnqualifiedBaseCustomers: null,

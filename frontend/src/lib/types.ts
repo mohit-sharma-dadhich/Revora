@@ -45,6 +45,11 @@ export interface OpportunityResponseData {
   aiError: string | null
   usedPrivateDataOnly: boolean
   diagnostic: {
+    minBaseCustomers: number
+    minAffinity: number
+    productCount: number
+    eligibleBaseProductCount: number
+    pairCount: number
     audienceBlocked: boolean
     bestUnqualifiedAffinity: number | null
     bestUnqualifiedBaseCustomers: number | null
