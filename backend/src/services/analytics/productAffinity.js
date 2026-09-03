@@ -1,6 +1,6 @@
 const Product = require('../../models/Product');
 const Order = require('../../models/Order');
-const { ownershipFilter, ownershipFields } = require('../../utils/ownership');
+const { ownershipFields } = require('../../utils/ownership');
 
 const MIN_BASE_CUSTOMERS = 20;
 const DEFAULT_MIN_AFFINITY = 0.65;
@@ -19,7 +19,7 @@ function sortPairResults(results) {
   });
 }
 
-async function getProductAffinity({ minBaseCustomers = MIN_BASE_CUSTOMERS, minAffinity = DEFAULT_MIN_AFFINITY, auth } = {}) {
+async function getProductAffinity({ minBaseCustomers = MIN_BASE_CUSTOMERS, minAffinity = DEFAULT_MIN_AFFINITY, auth, dataSource = 'auto' } = {}) {
   if (!Number.isInteger(minBaseCustomers) || minBaseCustomers < 0) {
     throw new Error('minBaseCustomers must be a non-negative integer');
   }
@@ -27,11 +27,15 @@ async function getProductAffinity({ minBaseCustomers = MIN_BASE_CUSTOMERS, minAf
   if (!Number.isFinite(minAffinity) || minAffinity < 0 || minAffinity > 1) {
     throw new Error('minAffinity must be a number between 0 and 1');
   }
+  if (!['auto', 'demo', 'private'].includes(dataSource)) {
+    throw new Error('dataSource must be auto, demo, or private');
+  }
 
   const strictScope = ownershipFields(auth);
   const hasPrivateData = Object.keys(strictScope).length > 0
     && await Order.exists({ ...strictScope, source: 'historical' });
-  const discoveryScope = hasPrivateData ? strictScope : ownershipFilter(auth);
+  const usePrivateData = dataSource === 'private' || (dataSource === 'auto' && hasPrivateData);
+  const discoveryScope = usePrivateData ? strictScope : { ownerId: null, sessionId: null };
 
   const productCustomers = await Order.aggregate([
     {
@@ -97,7 +101,7 @@ async function getProductAffinity({ minBaseCustomers = MIN_BASE_CUSTOMERS, minAf
 
   return {
     pairResults: sortedPairResults,
-    usedPrivateDataOnly: hasPrivateData,
+    usedPrivateDataOnly: usePrivateData,
     productCount: productIds.length,
     eligibleBaseProductCount,
     audienceBlocked: productIds.length > 0 && eligibleBaseProductCount === 0,

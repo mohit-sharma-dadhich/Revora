@@ -8,6 +8,12 @@ import { Card, CardContent, CardHeader } from '../components/ui/card'
 import { Skeleton } from '../components/ui/skeleton'
 import { AgentProgressPanel } from '../components/AgentProgressPanel'
 import { useOpportunity, useOpportunityList, useOpportunityRecommendation, useProposeExperiment } from '../lib/apiHooks'
+import type { OpportunityDataSource } from '../lib/api'
+
+function getOpportunityDataSource(): OpportunityDataSource {
+  const token = localStorage.getItem('revora_session_token') || 'anonymous'
+  return localStorage.getItem(`revora.opportunity.source.${token}`) === 'private' ? 'private' : 'demo'
+}
 
 function formatPercent(value: number) {
   return `${(value * 100).toFixed(1)}%`
@@ -45,8 +51,9 @@ function EmptyOpportunity({ usedPrivateDataOnly, productCount, eligibleBaseProdu
 
 export function OpportunityPage() {
   const navigate = useNavigate()
-  const query = useOpportunity()
-  const otherOpportunitiesQuery = useOpportunityList(5)
+  const dataSource = getOpportunityDataSource()
+  const query = useOpportunity(dataSource)
+  const otherOpportunitiesQuery = useOpportunityList(5, dataSource)
   const aiRecommendation = useOpportunityRecommendation()
   const propose = useProposeExperiment()
   const [proposalError, setProposalError] = useState<string | null>(null)
@@ -57,10 +64,10 @@ export function OpportunityPage() {
   const opportunity = data?.opportunity
   const recommendation = data?.recommendation
 
-  if (query.isLoading || query.isFetching) {
+  if (query.isLoading || query.isFetching || otherOpportunitiesQuery.isLoading || otherOpportunitiesQuery.isFetching) {
     return (
       <div className="space-y-5">
-        <AgentProgressPanel runType="opportunity_discovery" isActive={query.isLoading || query.isFetching} />
+        <AgentProgressPanel runType="opportunity_discovery" isActive={query.isLoading || query.isFetching || otherOpportunitiesQuery.isLoading || otherOpportunitiesQuery.isFetching} />
         <OpportunitySkeleton />
       </div>
     )

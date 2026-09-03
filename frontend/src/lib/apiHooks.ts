@@ -23,6 +23,7 @@ import {
   verifyPayment,
   scaleExperiment,
 } from './api'
+import type { OpportunityDataSource } from './api'
 import { ApiError } from './api'
 import type {
   AgentRun,
@@ -43,14 +44,14 @@ import type {
   VerifyPaymentRequest,
 } from './types'
 
-export function useOpportunity(): UseQueryResult<OpportunityResponseData> {
+export function useOpportunity(dataSource: OpportunityDataSource): UseQueryResult<OpportunityResponseData> {
   const sessionToken = typeof window === 'undefined' ? '' : localStorage.getItem('revora_session_token') || ''
-  return useQuery({ queryKey: ['opportunities', sessionToken], queryFn: getOpportunities })
+  return useQuery({ queryKey: ['opportunities', sessionToken, dataSource], queryFn: () => getOpportunities(dataSource) })
 }
 
-export function useOpportunityList(limit = 5): UseQueryResult<{ opportunities: Opportunity[] }> {
+export function useOpportunityList(limit = 5, dataSource: OpportunityDataSource = 'demo'): UseQueryResult<{ opportunities: Opportunity[] }> {
   const sessionToken = typeof window === 'undefined' ? '' : localStorage.getItem('revora_session_token') || ''
-  return useQuery({ queryKey: ['opportunityList', sessionToken, limit], queryFn: () => listOpportunities(limit) })
+  return useQuery({ queryKey: ['opportunityList', sessionToken, dataSource, limit], queryFn: () => listOpportunities(limit, dataSource) })
 }
 
 export function useOpportunityRecommendation(): UseMutationResult<{ recommendation: Recommendation | null; aiAvailable: boolean; aiError: string | null }, Error, Opportunity> {

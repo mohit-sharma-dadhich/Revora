@@ -12,8 +12,8 @@ async function safeTrackingStep(label, work) {
   }
 }
 
-async function listOpportunities({ auth, limit = 5 } = {}) {
-  const opportunities = await getRankedOpportunities({ auth, limit });
+async function listOpportunities({ auth, limit = 5, dataSource = 'auto' } = {}) {
+  const opportunities = await getRankedOpportunities({ auth, limit, dataSource });
 
   return {
     opportunities,
@@ -38,7 +38,7 @@ async function getRecommendationForOpportunity(opportunity) {
   }
 }
 
-async function getOpportunityRecommendation(auth) {
+async function getOpportunityRecommendation(auth, dataSource = 'auto') {
   const ownerId = auth && auth.mode === 'live' ? auth.user?.id : null;
   const sessionId = auth && auth.mode === 'test' ? auth.sessionId : null;
   const expiresAt = auth && auth.mode === 'test' ? auth.expiresAt : null;
@@ -82,7 +82,7 @@ async function getOpportunityRecommendation(auth) {
     bestUnqualifiedBaseCustomers: null,
   };
   try {
-    const discovery = await getRevenueOpportunityWithDiagnostics({ auth });
+    const discovery = await getRevenueOpportunityWithDiagnostics({ auth, dataSource });
     opportunity = discovery.opportunity;
     usedPrivateDataOnly = discovery.usedPrivateDataOnly;
     diagnostic = discovery.diagnostic;
@@ -163,6 +163,8 @@ async function getOpportunityRecommendation(auth) {
       recommendation: result.recommendation,
       aiAvailable: result.aiAvailable,
       aiError: result.aiError,
+      usedPrivateDataOnly,
+      diagnostic,
     };
   } catch (error) {
     if (runId && recommendationStepIndex !== null && recommendationStepIndex >= 0) {
@@ -186,6 +188,8 @@ async function getOpportunityRecommendation(auth) {
       recommendation: null,
       aiAvailable: false,
       aiError: error.message,
+      usedPrivateDataOnly,
+      diagnostic,
     };
   }
 }

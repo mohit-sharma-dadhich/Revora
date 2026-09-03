@@ -6,7 +6,8 @@ const {
 
 async function getOpportunity(req, res) {
   try {
-    const result = await getOpportunityRecommendation(req.auth);
+    const dataSource = req.query.dataSource || 'auto';
+    const result = await getOpportunityRecommendation(req.auth, dataSource);
 
     return res.status(200).json({
       success: true,
@@ -15,6 +16,8 @@ async function getOpportunity(req, res) {
         recommendation: result.recommendation,
         aiAvailable: result.aiAvailable ?? false,
         aiError: result.aiError || null,
+        usedPrivateDataOnly: result.usedPrivateDataOnly ?? false,
+        diagnostic: result.diagnostic || null,
       },
     });
   } catch (error) {
@@ -29,7 +32,8 @@ async function listOpportunitiesHandler(req, res) {
   try {
     const rawLimit = Number.parseInt(req.query.limit ?? '5', 10);
     const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 10) : 5;
-    const result = await listOpportunities({ auth: req.auth, limit });
+    const dataSource = req.query.dataSource || 'auto';
+    const result = await listOpportunities({ auth: req.auth, limit, dataSource });
 
     return res.status(200).json({
       success: true,

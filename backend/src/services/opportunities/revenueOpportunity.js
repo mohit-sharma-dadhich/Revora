@@ -38,6 +38,7 @@ async function getRankedOpportunitiesWithDiagnostics({
   minAffinity = DEFAULT_MIN_AFFINITY,
   minBaseCustomers = MIN_BASE_CUSTOMERS,
   auth,
+  dataSource = 'auto',
   limit = 5,
 } = {}) {
   if (!Number.isFinite(minAffinity) || minAffinity < 0 || minAffinity > 1) {
@@ -60,8 +61,8 @@ async function getRankedOpportunitiesWithDiagnostics({
     audienceBlocked,
     bestUnqualifiedAffinity,
     bestUnqualifiedBaseCustomers,
-  } = await getProductAffinity({ minBaseCustomers, minAffinity, auth });
-  const discoveryScope = usedPrivateDataOnly ? ownershipFields(auth) : ownershipFilter(auth);
+  } = await getProductAffinity({ minBaseCustomers, minAffinity, auth, dataSource });
+  const discoveryScope = usedPrivateDataOnly ? ownershipFields(auth) : { ownerId: null, sessionId: null };
 
   const opportunityRows = affinityResults.map((row) => ({
     baseProductId: row.baseProductId,

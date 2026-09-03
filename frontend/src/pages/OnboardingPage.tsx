@@ -76,7 +76,11 @@ export function OnboardingPage() {
                   {importMutation.data?.ordersImported || 0}
                 </p>
               </div>
-              <Button onClick={() => navigate('/opportunity')} className="w-full mt-4">
+              <Button onClick={() => {
+                const token = localStorage.getItem('revora_session_token') || 'anonymous'
+                localStorage.setItem(`revora.opportunity.source.${token}`, 'private')
+                navigate('/opportunity')
+              }} className="w-full mt-4">
                 Start discovering opportunities
               </Button>
             </CardContent>
@@ -117,7 +121,11 @@ export function OnboardingPage() {
           <Button
             variant="outline"
             className="mt-4"
-            onClick={() => navigate('/opportunity')}
+            onClick={() => {
+              const token = localStorage.getItem('revora_session_token') || 'anonymous'
+              localStorage.setItem(`revora.opportunity.source.${token}`, 'demo')
+              navigate('/opportunity')
+            }}
           >
             Use demo data
           </Button>
