@@ -26,6 +26,7 @@ import {
 import { ApiError } from './api'
 import type {
   AgentRun,
+  AnalyzeExperimentResponseData,
   AuditLogResponseData,
   CreatePaymentOrderRequest,
   CreatePaymentOrderResponseData,
@@ -74,7 +75,7 @@ export function useCompleteExperiment(): UseMutationResult<Experiment, Error, st
   return useMutation({ mutationFn: completeExperiment })
 }
 
-export function useAnalyzeExperiment(): UseMutationResult<Experiment, ApiError, string> {
+export function useAnalyzeExperiment(): UseMutationResult<AnalyzeExperimentResponseData, ApiError, string> {
   return useMutation({ mutationFn: analyzeExperiment })
 }
 

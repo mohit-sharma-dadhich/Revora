@@ -1,5 +1,6 @@
 import type {
   AgentRun,
+  AnalyzeExperimentResponseData,
   ApiErrorResponse,
   AuthSession,
   ApiResponse,
@@ -162,8 +163,8 @@ export function completeExperiment(id: string): Promise<Experiment> {
   return request<Experiment>(`/experiments/${encodeURIComponent(id)}/complete`, { method: 'POST', body: JSON.stringify({}) })
 }
 
-export function analyzeExperiment(id: string): Promise<Experiment> {
-  return request<Experiment>(`/experiments/${encodeURIComponent(id)}/analyze`, { method: 'POST' })
+export function analyzeExperiment(id: string): Promise<AnalyzeExperimentResponseData> {
+  return request<AnalyzeExperimentResponseData>(`/experiments/${encodeURIComponent(id)}/analyze`, { method: 'POST' })
 }
 
 export function scaleExperiment(id: string, options: ScaleExperimentOptions = {}): Promise<Experiment> {

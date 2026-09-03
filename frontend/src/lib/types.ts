@@ -140,6 +140,12 @@ export interface Experiment {
   updatedAt: string | null
 }
 
+export interface AnalyzeExperimentResponseData {
+  experiment: Experiment
+  measurement: ExperimentMeasurement
+  decision: string
+}
+
 export interface ScaleExperimentOptions {
   additionalAudienceSize?: number
 }
