@@ -140,6 +140,10 @@ export interface Experiment {
   updatedAt: string | null
 }
 
+export interface ScaleExperimentOptions {
+  additionalAudienceSize?: number
+}
+
 export interface CreatePaymentOrderRequest {
   experimentId: string
   customerId: string

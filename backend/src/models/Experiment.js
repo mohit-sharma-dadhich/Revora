@@ -67,6 +67,22 @@ const experimentSchema = new mongoose.Schema(
       enum: ['PENDING', 'SCALE', 'STOP', 'INSUFFICIENT_DATA'],
       default: 'PENDING',
     },
+    lastScaledAt: {
+      type: Date,
+      default: null,
+    },
+    lastAnalyzedAt: {
+      type: Date,
+      default: null,
+    },
+    scaleEvents: [{
+      scaledAt: Date,
+      addedControlCount: Number,
+      addedTreatmentCount: Number,
+      assignmentSeed: Number,
+      audienceSizeAfter: Number,
+      _id: false,
+    }],
   },
   {
     timestamps: true,

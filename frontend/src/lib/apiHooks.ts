@@ -5,7 +5,9 @@ import {
   type UseQueryResult,
 } from '@tanstack/react-query'
 import {
+  analyzeExperiment,
   completeExperiment,
+    endExperiment,
   createPaymentOrder,
   getAgentRun,
   getAuditLog,
@@ -19,7 +21,9 @@ import {
   proposeExperiment,
   startExperiment,
   verifyPayment,
+  scaleExperiment,
 } from './api'
+import { ApiError } from './api'
 import type {
   AgentRun,
   AuditLogResponseData,
@@ -34,6 +38,7 @@ import type {
   ProposeExperimentParams,
   ProposeExperimentResponseData,
   Recommendation,
+  ScaleExperimentOptions,
   VerifyPaymentRequest,
 } from './types'
 
@@ -67,6 +72,20 @@ export function useStartExperiment(): UseMutationResult<Experiment, Error, strin
 
 export function useCompleteExperiment(): UseMutationResult<Experiment, Error, string> {
   return useMutation({ mutationFn: completeExperiment })
+}
+
+export function useAnalyzeExperiment(): UseMutationResult<Experiment, ApiError, string> {
+  return useMutation({ mutationFn: analyzeExperiment })
+}
+
+export function useScaleExperiment(): UseMutationResult<Experiment, ApiError, string | { id: string; options?: ScaleExperimentOptions }> {
+  return useMutation({
+    mutationFn: (input) => typeof input === 'string' ? scaleExperiment(input) : scaleExperiment(input.id, input.options),
+  })
+}
+
+export function useEndExperiment(): UseMutationResult<Experiment, ApiError, string> {
+  return useMutation({ mutationFn: endExperiment })
 }
 
 export function useCreatePaymentOrder(): UseMutationResult<CreatePaymentOrderResponseData, Error, CreatePaymentOrderRequest> {

@@ -3,6 +3,11 @@ const Order = require('../../models/Order');
 const AuditLog = require('../../models/AuditLog');
 const { measureExperiment } = require('../measurement/measurementService');
 const { decideOutcome } = require('./decisionService');
+const {
+  findEligibleCustomersForProduct,
+  selectAudienceDeterministically,
+  assignAudienceDeterministically,
+} = require('./experimentProposalService');
 const { ownershipFields, ownershipFilter } = require('../../utils/ownership');
 
 const PRE_RUNNING_STATUSES = new Set(['draft', 'pending']);
@@ -40,6 +45,14 @@ async function logLifecycleEvent({ action, status = 'SUCCESS', reason, experimen
     },
     ...(auth ? { ...ownershipFields(auth), expiresAt: auth.mode === 'test' ? auth.expiresAt : null } : {}),
   });
+}
+
+async function countNewCompletedOrdersByGroup(experiment, since) {
+  const [newControlCount, newTreatmentCount] = await Promise.all([
+    Order.countDocuments({ customerId: { $in: experiment.controlCustomerIds }, status: 'completed', createdAt: { $gt: since } }),
+    Order.countDocuments({ customerId: { $in: experiment.treatmentCustomerIds }, status: 'completed', createdAt: { $gt: since } }),
+  ]);
+  return { newControlCount, newTreatmentCount };
 }
 
 async function getExperimentById(experimentId, auth) {
@@ -258,10 +271,191 @@ async function completeExperimentWithMeasurement(experimentId, options = {}, aut
   return normalizeExperiment(experiment.toObject());
 }
 
+async function analyzeExperiment(experimentId, auth, { bypassRateLimit = false } = {}) {
+  const experiment = await Experiment.findOne({ _id: experimentId, ...ownershipFilter(auth) });
+
+  if (!experiment) {
+    throw new Error('Experiment not found.');
+  }
+
+  if (experiment.status !== 'running') {
+    throw new Error(`Cannot analyze an experiment with status ${experiment.status}.`);
+  }
+
+  if (!bypassRateLimit) {
+    const cutoff = experiment.lastAnalyzedAt || experiment.startAt;
+    const { newControlCount, newTreatmentCount } = await countNewCompletedOrdersByGroup(experiment, cutoff);
+
+    if (newControlCount < 1 && newTreatmentCount < 1) {
+      throw new Error(`Need at least 1 new completed order in control or treatment since the last analysis (control: ${newControlCount} new, treatment: ${newTreatmentCount} new).`);
+    }
+  }
+
+  const measurement = await measureExperiment(experimentId);
+  const outcome = decideOutcome(measurement);
+
+  experiment.results = {
+    ...(experiment.results || {}),
+    measurement,
+    decisionChecks: outcome.checks,
+  };
+  experiment.decision = outcome.decision;
+
+  if (!bypassRateLimit) {
+    experiment.lastAnalyzedAt = new Date();
+  }
+
+  await experiment.save();
+
+  await logLifecycleEvent({
+    action: bypassRateLimit ? 'EXPERIMENT_ANALYZED_ON_END' : 'EXPERIMENT_ANALYZED',
+    status: 'SUCCESS',
+    reason: bypassRateLimit ? 'Experiment analyzed during completion.' : 'Experiment analyzed with new completed order evidence.',
+    experimentId: experiment._id.toString(),
+    metadata: {
+      decision: outcome.decision,
+      incrementalRevenue: measurement.incremental.incrementalRevenuePerEligibleCustomer,
+    },
+    auth,
+  });
+
+  return {
+    experiment: normalizeExperiment(experiment.toObject()),
+    measurement,
+    decision: outcome.decision,
+  };
+}
+
+async function scaleExperiment(experimentId, options = {}, auth) {
+  const experiment = await Experiment.findOne({ _id: experimentId, ...ownershipFilter(auth) });
+
+  if (!experiment) {
+    throw new Error('Experiment not found.');
+  }
+
+  if (experiment.status !== 'running') {
+    throw new Error(`Cannot scale an experiment with status ${experiment.status}.`);
+  }
+
+  if (experiment.decision !== 'SCALE') {
+    throw new Error('Can only scale an experiment with a SCALE decision.');
+  }
+
+  const assignmentSeed = experiment.results && experiment.results.assignmentSeed;
+  if (assignmentSeed === undefined || assignmentSeed === null) {
+    throw new Error('Experiment has no assignment seed.');
+  }
+
+  const eligibleCustomerIds = await findEligibleCustomersForProduct(experiment.baseProductId, auth);
+  const alreadyAssigned = new Set([
+    ...(experiment.controlCustomerIds || []),
+    ...(experiment.treatmentCustomerIds || []),
+  ].map((customerId) => customerId.toString()));
+  const remainingEligible = eligibleCustomerIds.filter((customerId) => !alreadyAssigned.has(customerId.toString()));
+  const additionalAudienceSize = Number.isInteger(options.additionalAudienceSize)
+    ? options.additionalAudienceSize
+    : experiment.results.proposedAudienceSize;
+  const maxAudienceSize = Math.floor(eligibleCustomerIds.length * (experiment.results.maxExposurePercent || 0.2));
+
+  if (alreadyAssigned.size + additionalAudienceSize > maxAudienceSize) {
+    throw new Error('Scaling would exceed the maximum exposure cap.');
+  }
+
+  const newCustomerIds = selectAudienceDeterministically(
+    remainingEligible,
+    Math.min(additionalAudienceSize, remainingEligible.length),
+    assignmentSeed,
+  );
+  const assignedAudience = assignAudienceDeterministically(
+    newCustomerIds,
+    experiment.results.treatmentPercentage || 0.5,
+    assignmentSeed,
+  );
+  const addedControl = assignedAudience.controlCustomerIds;
+  const addedTreatment = assignedAudience.treatmentCustomerIds;
+  const audienceSizeAfter = alreadyAssigned.size + newCustomerIds.length;
+
+  experiment.controlCustomerIds.push(...addedControl);
+  experiment.treatmentCustomerIds.push(...addedTreatment);
+  experiment.lastScaledAt = new Date();
+  experiment.scaleEvents.push({
+    scaledAt: experiment.lastScaledAt,
+    addedControlCount: addedControl.length,
+    addedTreatmentCount: addedTreatment.length,
+    assignmentSeed,
+    audienceSizeAfter,
+  });
+
+  await experiment.save();
+
+  await logLifecycleEvent({
+    action: 'EXPERIMENT_SCALED',
+    status: 'SUCCESS',
+    reason: 'Experiment audience expanded after a SCALE decision.',
+    experimentId: experiment._id.toString(),
+    metadata: {
+      addedControlCount: addedControl.length,
+      addedTreatmentCount: addedTreatment.length,
+      assignmentSeed,
+      audienceSizeAfter,
+    },
+    auth,
+  });
+
+  return normalizeExperiment(experiment.toObject());
+}
+
+async function endExperiment(experimentId, auth) {
+  let experiment = await Experiment.findOne({ _id: experimentId, ...ownershipFilter(auth) });
+
+  if (!experiment) {
+    throw new Error('Experiment not found.');
+  }
+
+  if (experiment.status !== 'running') {
+    throw new Error(`Cannot end an experiment with status ${experiment.status}.`);
+  }
+
+  try {
+    await analyzeExperiment(experimentId, auth, { bypassRateLimit: true });
+  } catch (error) {
+    await logLifecycleEvent({
+      action: 'EXPERIMENT_END_STALE_DECISION',
+      status: 'FAILED',
+      reason: error.message,
+      experimentId,
+      auth,
+    });
+  }
+
+  experiment = await Experiment.findOne({ _id: experimentId, ...ownershipFilter(auth) });
+
+  if (!experiment) {
+    throw new Error('Experiment not found.');
+  }
+
+  experiment.status = 'completed';
+  experiment.endAt = new Date();
+  await experiment.save();
+
+  await logLifecycleEvent({
+    action: 'EXPERIMENT_ENDED',
+    status: 'SUCCESS',
+    reason: 'Experiment ended.',
+    experimentId: experiment._id.toString(),
+    auth,
+  });
+
+  return normalizeExperiment(experiment.toObject());
+}
+
 module.exports = {
   PRE_RUNNING_STATUSES,
   completeExperiment,
   completeExperimentWithMeasurement,
+  analyzeExperiment,
+  scaleExperiment,
+  endExperiment,
   getExperimentById,
   logLifecycleEvent,
   normalizeExperiment,

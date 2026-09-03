@@ -15,6 +15,7 @@ import type {
   ProposeExperimentParams,
   ProposeExperimentResponseData,
   Recommendation,
+  ScaleExperimentOptions,
   VerifyPaymentRequest,
 } from './types'
 
@@ -159,6 +160,18 @@ export function startExperiment(id: string): Promise<Experiment> {
 
 export function completeExperiment(id: string): Promise<Experiment> {
   return request<Experiment>(`/experiments/${encodeURIComponent(id)}/complete`, { method: 'POST', body: JSON.stringify({}) })
+}
+
+export function analyzeExperiment(id: string): Promise<Experiment> {
+  return request<Experiment>(`/experiments/${encodeURIComponent(id)}/analyze`, { method: 'POST' })
+}
+
+export function scaleExperiment(id: string, options: ScaleExperimentOptions = {}): Promise<Experiment> {
+  return request<Experiment>(`/experiments/${encodeURIComponent(id)}/scale`, { method: 'POST', body: JSON.stringify(options) })
+}
+
+export function endExperiment(id: string): Promise<Experiment> {
+  return request<Experiment>(`/experiments/${encodeURIComponent(id)}/end`, { method: 'POST' })
 }
 
 export function createPaymentOrder(payload: CreatePaymentOrderRequest): Promise<CreatePaymentOrderResponseData> {
