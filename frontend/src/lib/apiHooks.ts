@@ -4,6 +4,7 @@ import {
   type UseMutationResult,
   type UseQueryResult,
 } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   analyzeExperiment,
   endExperiment,
@@ -43,11 +44,13 @@ import type {
 } from './types'
 
 export function useOpportunity(): UseQueryResult<OpportunityResponseData> {
-  return useQuery({ queryKey: ['opportunities'], queryFn: getOpportunities })
+  const sessionToken = typeof window === 'undefined' ? '' : localStorage.getItem('revora_session_token') || ''
+  return useQuery({ queryKey: ['opportunities', sessionToken], queryFn: getOpportunities })
 }
 
 export function useOpportunityList(limit = 5): UseQueryResult<{ opportunities: Opportunity[] }> {
-  return useQuery({ queryKey: ['opportunityList', limit], queryFn: () => listOpportunities(limit) })
+  const sessionToken = typeof window === 'undefined' ? '' : localStorage.getItem('revora_session_token') || ''
+  return useQuery({ queryKey: ['opportunityList', sessionToken, limit], queryFn: () => listOpportunities(limit) })
 }
 
 export function useOpportunityRecommendation(): UseMutationResult<{ recommendation: Recommendation | null; aiAvailable: boolean; aiError: string | null }, Error, Opportunity> {
@@ -108,7 +111,14 @@ export function usePaymentAudits(limit = 50, skip = 0): UseQueryResult<PaymentAu
 }
 
 export function useImportMerchantData(): UseMutationResult<ImportResult, Error, FormData> {
-  return useMutation({ mutationFn: importMerchantData })
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: importMerchantData,
+    onSuccess: () => {
+      queryClient.removeQueries({ queryKey: ['opportunities'] })
+      queryClient.removeQueries({ queryKey: ['opportunityList'] })
+    },
+  })
 }
 
 export function useAgentRun(id: string | undefined): UseQueryResult<AgentRun> {
