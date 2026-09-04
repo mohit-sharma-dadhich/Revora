@@ -148,7 +148,11 @@ export function ExperimentPage() {
     analyze.mutate(experimentId, {
       onSuccess: (result) => navigate(`/results/${experimentId}`, { state: { experiment: result.experiment, experimentId } }),
       onError: (error) => {
-        if (error.status === 429) setAnalysisError(`Not enough new data: ${error.message}`)
+        if (error.status === 429) {
+          setAnalysisError(`Not enough new data: ${error.message}`)
+        } else {
+          toast.error(error instanceof Error ? error.message : 'Unable to analyze experiment')
+        }
       },
     })
   }

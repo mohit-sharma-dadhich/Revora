@@ -116,13 +116,13 @@ function queryString(params?: ProposeExperimentParams): string {
   return value ? `?${value}` : ''
 }
 
-export type OpportunityDataSource = 'demo' | 'private'
+export type OpportunityDataSource = 'demo' | 'private' | 'auto'
 
 export function getOpportunities(dataSource: OpportunityDataSource): Promise<OpportunityResponseData> {
   return request<OpportunityResponseData>(`/opportunities?dataSource=${dataSource}`)
 }
 
-export function listOpportunities(limit = 5, dataSource: OpportunityDataSource = 'demo'): Promise<{ opportunities: Opportunity[] }> {
+export function listOpportunities(limit = 5, dataSource: OpportunityDataSource = 'auto'): Promise<{ opportunities: Opportunity[] }> {
   return request<{ opportunities: Opportunity[] }>(`/opportunities/list?limit=${encodeURIComponent(String(limit))}&dataSource=${dataSource}`)
 }
 

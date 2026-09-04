@@ -50,7 +50,7 @@ export function useOpportunity(dataSource: OpportunityDataSource): UseQueryResul
   return useQuery({ queryKey: ['opportunities', sessionToken, dataSource], queryFn: () => getOpportunities(dataSource) })
 }
 
-export function useOpportunityList(limit = 5, dataSource: OpportunityDataSource = 'demo'): UseQueryResult<{ opportunities: Opportunity[] }> {
+export function useOpportunityList(limit = 5, dataSource: OpportunityDataSource = 'auto'): UseQueryResult<{ opportunities: Opportunity[] }> {
   const sessionToken = typeof window === 'undefined' ? '' : localStorage.getItem('revora_session_token') || ''
   return useQuery({ queryKey: ['opportunityList', sessionToken, dataSource, limit], queryFn: () => listOpportunities(limit, dataSource) })
 }

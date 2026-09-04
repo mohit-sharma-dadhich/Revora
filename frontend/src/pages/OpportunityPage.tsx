@@ -12,7 +12,11 @@ import type { OpportunityDataSource } from '../lib/api'
 
 function getOpportunityDataSource(): OpportunityDataSource {
   const token = localStorage.getItem('revora_session_token') || 'anonymous'
-  return localStorage.getItem(`revora.opportunity.source.${token}`) === 'private' ? 'private' : 'demo'
+  return localStorage.getItem(`revora.opportunity.source.${token}`) === 'private'
+    ? 'private'
+    : localStorage.getItem(`revora.opportunity.source.${token}`) === 'demo'
+    ? 'demo'
+    : 'auto'
 }
 
 function formatPercent(value: number) {
