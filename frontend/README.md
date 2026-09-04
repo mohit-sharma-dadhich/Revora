@@ -1,32 +1,63 @@
-# React + TypeScript + Vite
+# Revora Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+This frontend is the merchant-facing experience for Revora. It connects the product workflow, opportunity discovery, experiment proposal, results review, and AI recommendations in a single React app.
 
-Currently, two official plugins are available:
+Live app: https://revora.sharmamohit82900.workers.dev/
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## Stack
 
-## React Compiler
+- React
+- TypeScript
+- Vite
+- Tailwind CSS
+- TanStack Query
+- React Router
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Local setup
 
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+cd frontend
+npm install
+npm run dev
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+The app expects the backend API to be available locally or through a hosted environment.
+
+## Environment variables
+
+Create a `.env` file if needed:
+
+```env
+VITE_API_BASE_URL=http://localhost:5000
+```
+
+## Key frontend areas
+
+- Onboarding flow and session setup
+- Opportunity discovery pages
+- Experiment design and review screens
+- Payment simulation in test mode
+- Results and analytics dashboards
+- Audit/history views
+
+## Main pages
+
+- Onboarding
+- OpportunityPage
+- ExperimentPage
+- ResultsPage
+- HistoryPage
+- AuditPage
+- ProfilePage
+
+## Run and build
+
+```bash
+npm run dev
+npm run build
+npm run preview
+```
+
+## Notes
+
+The frontend is intentionally built around a clear product flow: onboard → discover → propose → run → analyze → decide. It keeps the user experience focused while preserving deterministic backend logic under the hood.

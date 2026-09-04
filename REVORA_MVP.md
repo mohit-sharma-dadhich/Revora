@@ -1,227 +1,107 @@
-# Revora — MVP Specification
+# Revora MVP / Product Spec
 
-## MVP Objective
+This document reflects the current implementation and product direction of Revora as it exists today.
 
-Build one complete revenue-growth loop for a merchant:
+Live app: https://revora.sharmamohit82900.workers.dev/
 
-**Discover → Propose → Guardrail → Experiment → Measure → SCALE / STOP**
+## Objective
 
-Revora's first and only MVP strategy is **cross-sell**.
+Revora helps merchants discover and validate cross-sell opportunities that can increase revenue without relying on blind automation. The product combines deterministic evidence, AI explanation, and experiment guardrails to support smarter decision-making.
 
----
-
-## End-to-End Flow
+## Current user journey
 
 ```text
-Merchant Data
-     ↓
-Analytics
-     ↓
-AI Agent discovers opportunity
-     ↓
-AI proposes cross-sell experiment
-     ↓
-Guardrails validate proposal
-     ↓
-Experiment runs
-     ↓
-Razorpay Test Mode handles experiment payments
-     ↓
-Payments are verified and recorded
-     ↓
-Control vs Treatment is measured
-     ↓
-Incremental revenue is calculated
-     ↓
-AI recommends SCALE / STOP
+Onboarding / session setup
+        ↓
+Opportunity discovery
+        ↓
+AI explanation and rank
+        ↓
+Experiment proposal
+        ↓
+Guardrail validation
+        ↓
+Experiment execution
+        ↓
+Test payment simulation
+        ↓
+Results review
+        ↓
+SCALE / STOP recommendation
 ```
 
----
+## What is implemented
 
-## 1. Input Data
+### Opportunity intelligence
 
-Historical merchant data is simulated and contains:
+- Merchant data and product history can be imported or simulated
+- Opportunity discovery supports `demo`, `private`, and `auto` data sources
+- The system ranks opportunities by affinity and audience scale
+- The UI can show other opportunities besides the primary one
 
-- Customers
-- Products
-- Historical orders
-- Purchase relationships
+### AI layer
 
-The simulator will contain a measurable cross-sell opportunity, but the opportunity will **not** be directly revealed to the AI.
+- The app provides AI recommendation explanations for opportunities
+- Recommendation quality is grounded in the actual opportunity object
+- The AI layer is not allowed to invent counts or override deterministic metrics
 
-Example:
+### Experiment workflow
 
-```text
-Customers who buy Running Shoes
-frequently also buy Sports Socks.
-```
+- A proposed experiment is created from a selected opportunity
+- Guardrails validate whether the experiment should run
+- Audience groups are split across control and treatment cohorts
+- Running experiments can be analyzed for outcomes
+- Analysis results route to a results page
 
-Revora must discover this relationship through its analytics tools.
+### Payment and simulation
 
----
+- Razorpay Test Mode is used for test payment simulation
+- Payment flows are verified server-side
+- Customer-level payment simulation is supported in the UI
 
-## 2. AI Agent
+### Auditability
 
-The AI agent is responsible for:
+- Experiment flows and data actions are recorded in the app audit trail
+- Results and recommendation logic remain inspectable and deterministic
 
-- Understanding the merchant's revenue goal
-- Selecting relevant tools
-- Analyzing returned evidence
-- Identifying a cross-sell opportunity
-- Explaining why the opportunity is valuable
-- Proposing an experiment
-- Interpreting experiment results
-- Recommending SCALE or STOP
+## Data source model
 
-The AI does **not** perform financial calculations itself.
+The app supports three data-source modes:
 
----
+- `demo`: uses seeded/demo data
+- `private`: uses merchant uploaded or private data
+- `auto`: default fallback mode when no explicit override is set
 
-## 3. Experiment
+The company logic intentionally keeps explicit user override buttons in onboarding, while the default page behavior falls back to `auto` instead of `demo`.
 
-The selected audience is divided into:
+## Guardrails and decisioning
 
-```text
-Eligible Customers
-       │
-       ├──────────────┐
-       ↓              ↓
-   CONTROL         TREATMENT
-       │              │
- Normal experience   Cross-sell
-                    intervention
-```
+Before an experiment is run, the system validates that it is safe and meaningful. Some examples include:
 
-The treatment group receives the proposed cross-sell experience.
+- audience size constraints
+- minimum opportunity quality
+- maximum exposure rules
+- experiment-specific checks and block reasons
 
-The control group does not.
+## Engineering principle
 
-The experiment is executed using **Razorpay Test Mode** for experiment-related transactions.
+> The LLM explains the signal. Deterministic code calculates the signal. The application executes and records the decision.
 
----
+## MVP boundary
 
-## 4. Guardrails
+The product is intentionally scoped to a merchant-facing revenue optimization loop focused on cross-sell opportunities, not a general autonomous trading or marketing engine.
 
-Before execution, the experiment must pass predefined rules.
+## Current project status
 
-Initial guardrails:
+This repository represents the current working build of Revora, including:
 
-- Maximum audience exposure
-- Minimum audience/sample size
-- Maximum discount
-- Minimum expected opportunity
+- frontend experience and navigation
+- backend API and services
+- experiment lifecycle support
+- AI recommendation support
+- payment test-mode flow
+- analytics and measurement logic
 
-The result is:
+## Local development
 
-```text
-PASS → Experiment can execute
-BLOCK → Experiment cannot execute
-```
-
-A blocked action must include a reason and be recorded in the audit trail.
-
----
-
-## 5. Razorpay Integration
-
-Revora uses Razorpay Test Mode for the experiment payment flow:
-
-```text
-Revora Backend
-      ↓
-Create Razorpay Order
-      ↓
-Razorpay Checkout
-      ↓
-Test Payment
-      ↓
-Server-side Verification
-      ↓
-Webhook
-      ↓
-Experiment Result
-```
-
-Razorpay credentials remain server-side.
-
-The AI agent does not directly access Razorpay credentials or payment APIs.
-
----
-
-## 6. Measurement
-
-Revora compares control and treatment performance.
-
-Primary metric:
-
-**Incremental Revenue per Eligible Customer**
-
-Secondary metrics:
-
-- Conversion rate
-- Average order value
-- Total revenue
-- Revenue uplift
-
-All financial calculations are performed by deterministic application code.
-
----
-
-## 7. Final Decision
-
-After the experiment, Revora evaluates the measured results.
-
-```text
-Experiment Results
-       ↓
-Incremental Revenue
-       ↓
-Decision
-   ↙       ↘
-SCALE     STOP
-```
-
-### SCALE
-
-The experiment produced sufficient positive impact according to predefined decision rules.
-
-### STOP
-
-The experiment did not produce sufficient positive impact or failed the required conditions.
-
-The decision and supporting evidence are recorded in the audit trail.
-
----
-
-## MVP Boundary
-
-### We are building
-
-- One merchant scenario
-- One cross-sell strategy
-- One AI agent
-- Simulated historical data
-- Deterministic analytics
-- One control/treatment experiment
-- Guardrails
-- Razorpay Test Mode integration
-- Payment verification
-- Webhook handling
-- Incremental revenue measurement
-- SCALE / STOP decision
-- Audit trail
-
-### We are NOT building
-
-- Multiple growth strategies
-- Multi-agent orchestration
-- Production payments
-- Complex machine-learning models
-- Fully autonomous unrestricted financial actions
-- Large-scale statistical research
-
----
-
-## Core Engineering Rule
-
-> **The LLM reasons. Deterministic code calculates. APIs execute. Guardrails control execution. Audit logs record actions.**
+See the root [README.md](README.md), [backend/README.md](backend/README.md), and [frontend/README.md](frontend/README.md) for setup and run instructions.
