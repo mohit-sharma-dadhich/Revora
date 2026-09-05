@@ -1,5 +1,6 @@
 const Experiment = require('../../models/Experiment');
 const Order = require('../../models/Order');
+const Product = require('../../models/Product');
 const AuditLog = require('../../models/AuditLog');
 const { measureExperiment } = require('../measurement/measurementService');
 const { decideOutcome } = require('./decisionService');
@@ -32,6 +33,7 @@ function normalizeExperiment(experiment) {
     scaleEvents: experiment.scaleEvents || [],
     createdAt: experiment.createdAt ? experiment.createdAt.toISOString() : null,
     updatedAt: experiment.updatedAt ? experiment.updatedAt.toISOString() : null,
+    lastAnalyzedAt: experiment.lastAnalyzedAt ? experiment.lastAnalyzedAt.toISOString() : null,
   };
 }
 
@@ -44,7 +46,32 @@ async function getCompletedExperiments(auth, limit = 50) {
     .limit(limit)
     .lean();
 
-  return experiments.map(normalizeExperiment);
+  const normalized = experiments.map(normalizeExperiment);
+
+  const productIds = [
+    ...new Set(
+      normalized.flatMap((e) => [e.baseProductId, e.targetProductId]).filter(Boolean)
+    ),
+  ];
+
+  if (productIds.length === 0) {
+    return normalized;
+  }
+
+  const products = await Product.find(
+    { _id: { $in: productIds } },
+    { name: 1 }
+  ).lean();
+
+  const productNames = new Map(
+    products.map((p) => [p._id.toString(), p.name])
+  );
+
+  return normalized.map((e) => ({
+    ...e,
+    baseProductName: productNames.get(e.baseProductId) || null,
+    targetProductName: productNames.get(e.targetProductId) || null,
+  }));
 }
 
 async function logLifecycleEvent({ action, status = 'SUCCESS', reason, experimentId, metadata = {}, auth }) {

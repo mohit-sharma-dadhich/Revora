@@ -1,39 +1,46 @@
 # Revora
 
-Revora is an AI-assisted revenue growth platform for merchants. It discovers high-signal cross-sell opportunities from merchant order data, validates them with deterministic analytics, runs guarded experiments, and surfaces actionable recommendations to grow incremental revenue.
+Revora is an AI-assisted revenue growth platform for merchants. It discovers cross-sell opportunities from merchant order data, ranks them deterministically, runs guardrail-checked experiments with real control/treatment splits, processes test-mode payments, measures results with a two-proportion z-test, and produces a SCALE/STOP/INSUFFICIENT_DATA decision.
 
 Live app: https://revora.sharmamohit82900.workers.dev/
 
 ## What Revora does
 
-- Identifies cross-sell opportunities from customer purchase patterns
-- Supports demo, private, and auto data-source modes
-- Uses deterministic analytics to score and rank opportunities
-- Generates AI analysis and recommendation text for each opportunity
-- Proposes experiments with guardrail validation
-- Runs experiment simulation and payment flows in Razorpay Test Mode
-- Measures results, records audits, and provides a scale/stop decision
+- Discovers cross-sell opportunities from customer purchase patterns and ranks them by affinity × audience size
+- Supports three data-source modes: demo (shared seeded baseline), private (merchant's own CSV-imported data, fully isolated), and auto (shows the merchant's own data if available, falls back to demo otherwise)
+- If a merchant's own data doesn't clear the opportunity thresholds (20+ customers on a base product, 65%+ co-purchase overlap), the app says so explicitly with the actual numbers rather than silently substituting demo data
+- Generates an AI recommendation for the top opportunity; recommendations for alternate opportunities are loaded on demand, not automatically, to control LLM cost
+- Proposes experiments with guardrail validation and a seeded Fisher-Yates control/treatment split
+- Runs experiment payment flows through Razorpay in test mode
+- Measures results with a genuine two-proportion z-test — not just "revenue went up"
+- Produces a SCALE / STOP / INSUFFICIENT_DATA decision based on the statistical evidence
+- A running experiment can be scaled (grows the audience within an exposure cap), ended (with two-step confirmation), or left running to accumulate more data
+- Re-analysis is rate-limited: at least one new completed order in either group since the last analysis is required, to prevent re-running statistics on unchanged data
+- Completed experiments appear in a History page with their final verdicts and stored measurements
+- Every payment transaction gets its own step-by-step audit timeline (order created → client verified / webhook captured → final status), separate from the general system activity log
 
-## Latest product flow
+## Product flow
 
 ```text
-Merchant data / imports
+Merchant data (import or demo)
         ↓
-Opportunity discovery
+Opportunity discovery (auto/private/demo scoped)
         ↓
 AI recommendation + evidence
         ↓
-Experiment proposal
+Experiment proposal + guardrail checks
         ↓
-Guardrail checks
+Start experiment (seeded random control/treatment split)
         ↓
-Start experiment
+Simulated customer payments (Razorpay test mode)
         ↓
-Simulated customer payments
+Analyze (rate-limited re-analysis, real z-test)
         ↓
-Result analysis
+SCALE / STOP / INSUFFICIENT_DATA decision
         ↓
-SCALE / STOP recommendation
+Scale, continue, or end the experiment
+        ↓
+Experiment history + per-payment audit trail
 ```
 
 ## Tech stack
@@ -41,10 +48,10 @@ SCALE / STOP recommendation
 - Frontend: React, TypeScript, Vite, Tailwind CSS
 - Backend: Node.js, Express
 - Data layer: MongoDB with Mongoose
-- AI layer: LLM-powered recommendation and reasoning
-- Payments: Razorpay Test Mode
-- Auth: session-based merchant auth flow
-- Monitoring: audit logs and experiment history
+- Auth: hashed bearer session token mapped to a Session document
+- Payments: Razorpay in test mode
+- AI layer: LLM-powered recommendation and explanation text — never recalculates guardrails, metrics, or financial figures (those are always deterministic code)
+- Monitoring: system activity log + per-payment audit timelines + experiment history
 
 ## Repository structure
 
@@ -92,15 +99,17 @@ npm run dev
 
 ### Backend
 
-Create a local `.env` file in the backend folder with values like:
+Create a local `.env` file in the backend folder (see `backend/.env.example`):
 
 ```env
 PORT=5000
 NODE_ENV=development
+FRONTEND_URL=http://localhost:5173
 MONGODB_URI=mongodb://localhost:27017/revora
 RAZORPAY_KEY_ID=your_test_key_id
 RAZORPAY_KEY_SECRET=your_test_key_secret
-JWT_SECRET=your_local_secret
+RAZORPAY_WEBHOOK_SECRET=your_webhook_secret
+GEMINI_API_KEY=your_gemini_api_key
 ```
 
 ### Frontend
@@ -115,25 +124,32 @@ VITE_API_BASE_URL=http://localhost:5000
 
 ### Opportunity discovery
 
-Revora can evaluate opportunities using:
+Revora evaluates opportunities using one of three data-source modes:
 
-- `demo` data
-- `private` uploaded/merchant-provided data
-- `auto` mode for default behavior when no explicit override is set
+- **demo**: shared seeded baseline data, always available for exploring the product with no setup
+- **private**: a signed-up merchant's own CSV-imported customers, products, and orders, completely isolated from other merchants
+- **auto** (default): shows the merchant's own data if they have any, falls back to demo otherwise
+
+If a merchant's own data doesn't meet the qualification thresholds (20+ base customers, 65%+ co-purchase affinity), the app reports the actual numbers explicitly rather than silently falling back to demo data.
 
 ### Experiment logic
 
 The app proposes a controlled cross-sell experiment and enforces guardrails before execution. The flow includes:
 
-- audience split and control/treatment allocation
-- validation checks
-- experiment start and run status
-- payment simulation in test mode
-- measurement and final decisioning
+- Seeded Fisher-Yates audience split into control and treatment groups
+- Guardrail validation checks before the experiment can start
+- Experiment start, run, and rate-limited re-analysis
+- Payment simulation through Razorpay in test mode
+- Measurement via two-proportion z-test
+- SCALE / STOP / INSUFFICIENT_DATA decision
+- Scaling (audience growth within an exposure cap), ending (two-step confirmation), or continuing
 
 ### Auditability
 
-The system records experiment, payment, and operation activity to keep the workflow traceable and explainable.
+Two separate audit surfaces:
+
+- **System activity log**: records experiment lifecycle events, data actions, and operational activity
+- **Per-payment audit timeline**: each payment transaction has its own step-by-step trail (order created → client verified / webhook captured → final status)
 
 ## Scripts
 
@@ -143,6 +159,7 @@ The system records experiment, payment, and operation activity to keep the workf
 npm run dev
 npm start
 npm test
+npm run seed    # seed the database with simulated merchant data
 ```
 
 ### Frontend
@@ -155,4 +172,4 @@ npm run preview
 
 ## Notes
 
-This project is an MVP-grade product experience for revenue-optimization workflows, combining deterministic analytics with AI-generated recommendations while keeping the actual decision logic grounded in application data instead of raw LLM output.
+This project is an MVP-grade product experience for revenue-optimization workflows, combining deterministic analytics with AI-generated recommendations while keeping guardrails, metrics, financial figures, and decision logic grounded in application code instead of LLM output.

@@ -53,6 +53,21 @@ function buildCatalog() {
   ];
 }
 
+/**
+ * Qualifying product pairs planted into the seed data.
+ * Each pair targets a different category combination and affinity tier,
+ * with enough base customers (25+) to clear MIN_BASE_CUSTOMERS (20).
+ *
+ * The `poolSize` fraction controls how many customers are assigned to
+ * the pool that buys the base product; `targetAffinity` controls what
+ * fraction of those base-buyers also co-purchase the target product.
+ */
+const QUALIFYING_PAIRS = [
+  { base: 'Running Shoes',  target: 'Sports Socks',      poolSize: 0.18, targetAffinity: 0.90 },
+  { base: 'Yoga Mat',       target: 'Resistance Bands',  poolSize: 0.14, targetAffinity: 0.75 },
+  { base: 'Training Tee',   target: 'Athletic Shorts',   poolSize: 0.12, targetAffinity: 0.68 },
+];
+
 function buildCustomers(customerCount, random) {
   const firstNames = [
     'Aarav', 'Aisha', 'Ananya', 'Arjun', 'Diya', 'Ethan', 'Ishaan', 'Kavya', 'Meera', 'Neha',
@@ -64,10 +79,29 @@ function buildCustomers(customerCount, random) {
   ];
   const segments = ['High Value', 'Fitness Enthusiast', 'Frequent Buyer', 'Occasional Buyer', 'New Customer'];
 
+  // Pre-compute non-overlapping customer index ranges for each affinity pool.
+  // Customers not assigned to any pool behave normally (organic noise only).
+  const pools = [];
+  let cursor = 0;
+  for (const pair of QUALIFYING_PAIRS) {
+    const size = Math.max(25, Math.floor(customerCount * pair.poolSize));
+    pools.push({ ...pair, startIndex: cursor, endIndex: cursor + size });
+    cursor += size;
+  }
+
   return Array.from({ length: customerCount }, (_, index) => {
     const firstName = firstNames[index % firstNames.length];
     const lastName = lastNames[(index * 3) % lastNames.length];
     const segment = segments[index % segments.length];
+
+    // Determine which affinity pool (if any) this customer belongs to
+    let affinityPool = null;
+    for (const pool of pools) {
+      if (index >= pool.startIndex && index < pool.endIndex) {
+        affinityPool = { base: pool.base, target: pool.target, targetAffinity: pool.targetAffinity };
+        break;
+      }
+    }
 
     return {
       _id: new mongoose.Types.ObjectId(),
@@ -81,7 +115,7 @@ function buildCustomers(customerCount, random) {
       orderCount: 0,
       lastPurchaseAt: null,
       __profile: {
-        affinityCustomer: random() < 0.45,
+        affinityPool,
         preferredCategory: ['Footwear', 'Fitness', 'Apparel', 'Accessories'][index % 4],
       },
     };
@@ -89,9 +123,17 @@ function buildCustomers(customerCount, random) {
 }
 
 function choosePrimaryProduct(profile, products, random) {
-  const categoryOrder = [profile.preferredCategory, 'Footwear', 'Fitness', 'Apparel', 'Accessories'];
+  // Pool customers are biased toward their base product's category
+  const preferredCategories = [profile.preferredCategory];
+  if (profile.affinityPool) {
+    const baseProduct = products.find((p) => p.name === profile.affinityPool.base);
+    if (baseProduct && !preferredCategories.includes(baseProduct.category)) {
+      preferredCategories.unshift(baseProduct.category);
+    }
+  }
 
-  const categoryCandidates = categoryOrder.filter(Boolean);
+  const categoryOrder = [...preferredCategories, 'Footwear', 'Fitness', 'Apparel', 'Accessories'];
+  const categoryCandidates = [...new Set(categoryOrder.filter(Boolean))];
   const matchingProducts = products.filter((product) => categoryCandidates.includes(product.category));
 
   if (matchingProducts.length === 0) {
@@ -103,8 +145,6 @@ function choosePrimaryProduct(profile, products, random) {
 
 function generateHistoricalOrders(customers, products, orderCount, random) {
   const productByName = new Map(products.map((product) => [product.name, product]));
-  const runningShoesProduct = productByName.get('Running Shoes');
-  const sportsSocksProduct = productByName.get('Sports Socks');
 
   const orders = [];
 
@@ -116,9 +156,15 @@ function generateHistoricalOrders(customers, products, orderCount, random) {
     const baseProduct = choosePrimaryProduct(customer.__profile, products, random);
     basket.push(baseProduct);
 
-    const mayAddCrossSell = customer.__profile.affinityCustomer && baseProduct.name === 'Running Shoes' && random() < 0.82;
-    if (mayAddCrossSell && sportsSocksProduct) {
-      basket.push(sportsSocksProduct);
+    // Organic cross-sell: if the customer is in an affinity pool and the
+    // primary product matches the pair's base, co-add the target product
+    // at the pair's target affinity probability.
+    const pool = customer.__profile.affinityPool;
+    if (pool && baseProduct.name === pool.base && random() < pool.targetAffinity) {
+      const targetProduct = productByName.get(pool.target);
+      if (targetProduct) {
+        basket.push(targetProduct);
+      }
     }
 
     if (random() < 0.6) {
@@ -158,32 +204,45 @@ function generateHistoricalOrders(customers, products, orderCount, random) {
     });
   }
 
-  // Add a strong planted relationship without storing any explicit relationship field.
-  const affinityCustomers = customers.filter((customer) => customer.__profile.affinityCustomer);
-  const crossSellCustomerCount = Math.max(1, Math.floor(affinityCustomers.length * 0.8));
+  // Plant guaranteed co-purchase orders for each qualifying pair.
+  // For every pool, a fraction of the pool's customers (equal to the target
+  // affinity) get a dedicated base+target order. This ensures that even after
+  // organic noise, each pair's measured affinity stays near its target.
+  let plantedCount = 0;
+  for (const pair of QUALIFYING_PAIRS) {
+    const baseProduct = productByName.get(pair.base);
+    const targetProduct = productByName.get(pair.target);
+    if (!baseProduct || !targetProduct) continue;
 
-  for (let i = 0; i < crossSellCustomerCount; i += 1) {
-    const customer = affinityCustomers[i];
-    const orderDate = makeDateRange(random, 400, 10);
-    const basket = [runningShoesProduct, sportsSocksProduct];
-    const amount = basket.reduce((total, product) => total + product.price, 0);
+    const poolCustomers = customers.filter(
+      (c) => c.__profile.affinityPool && c.__profile.affinityPool.base === pair.base
+    );
+    const crossSellCount = Math.max(1, Math.floor(poolCustomers.length * pair.targetAffinity));
 
-    orders.push({
-      customerId: customer._id,
-      productIds: basket.map((product) => product._id),
-      ownerId: null,
-      sessionId: null,
-      expiresAt: null,
-      amount,
-      source: 'historical',
-      status: 'completed',
-      razorpayOrderId: undefined,
-      razorpayPaymentId: undefined,
-      createdAt: orderDate,
-    });
+    for (let i = 0; i < crossSellCount; i += 1) {
+      const customer = poolCustomers[i];
+      const orderDate = makeDateRange(random, 400, 10);
+      const basket = [baseProduct, targetProduct];
+      const amount = basket.reduce((total, product) => total + product.price, 0);
+
+      orders.push({
+        customerId: customer._id,
+        productIds: basket.map((product) => product._id),
+        ownerId: null,
+        sessionId: null,
+        expiresAt: null,
+        amount,
+        source: 'historical',
+        status: 'completed',
+        razorpayOrderId: undefined,
+        razorpayPaymentId: undefined,
+        createdAt: orderDate,
+      });
+      plantedCount += 1;
+    }
   }
 
-  return orders.slice(0, orderCount + crossSellCustomerCount);
+  return orders.slice(0, orderCount + plantedCount);
 }
 
 async function reseedDatabase({ reset, customerCount, orderCount, seed }) {
@@ -270,19 +329,23 @@ async function reseedDatabase({ reset, customerCount, orderCount, seed }) {
     });
   }
 
-  const runningShoes = productLookup.get('Running Shoes');
-  const sportsSocks = productLookup.get('Sports Socks');
-  const crossSellOrders = createdOrders.filter((order) => {
-    const hasRunningShoes = order.productIds.some((productId) => productId.toString() === runningShoes._id.toString());
-    const hasSportsSocks = order.productIds.some((productId) => productId.toString() === sportsSocks._id.toString());
-    return hasRunningShoes && hasSportsSocks;
-  }).length;
-
   console.log('Seeded simulated merchant data');
   console.log(`Customers: ${createdCustomers.length}`);
   console.log(`Products: ${createdProducts.length}`);
   console.log(`Historical orders: ${createdOrders.length}`);
-  console.log(`Cross-sell orders with Running Shoes + Sports Socks: ${crossSellOrders}`);
+
+  for (const pair of QUALIFYING_PAIRS) {
+    const baseProduct = productLookup.get(pair.base);
+    const targetProduct = productLookup.get(pair.target);
+    if (!baseProduct || !targetProduct) continue;
+    const pairOrders = createdOrders.filter((order) => {
+      const hasBase = order.productIds.some((id) => id.toString() === baseProduct._id.toString());
+      const hasTarget = order.productIds.some((id) => id.toString() === targetProduct._id.toString());
+      return hasBase && hasTarget;
+    }).length;
+    console.log(`Cross-sell orders ${pair.base} + ${pair.target} (~${Math.round(pair.targetAffinity * 100)}%): ${pairOrders}`);
+  }
+
   console.log(`Seed: ${seed}`);
 
   await mongoose.disconnect();

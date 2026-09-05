@@ -11,77 +11,91 @@ Revora helps merchants discover and validate cross-sell opportunities that can i
 ## Current user journey
 
 ```text
-Onboarding / session setup
+Merchant data (import or demo)
         ↓
-Opportunity discovery
+Opportunity discovery (auto/private/demo scoped)
         ↓
-AI explanation and rank
+AI recommendation + evidence
         ↓
-Experiment proposal
+Experiment proposal + guardrail checks
         ↓
-Guardrail validation
+Start experiment (seeded random control/treatment split)
         ↓
-Experiment execution
+Simulated customer payments (Razorpay test mode)
         ↓
-Test payment simulation
+Analyze (rate-limited re-analysis, real z-test)
         ↓
-Results review
+SCALE / STOP / INSUFFICIENT_DATA decision
         ↓
-SCALE / STOP recommendation
+Scale, continue, or end the experiment
+        ↓
+Experiment history + per-payment audit trail
 ```
 
 ## What is implemented
 
 ### Opportunity intelligence
 
-- Merchant data and product history can be imported or simulated
-- Opportunity discovery supports `demo`, `private`, and `auto` data sources
-- The system ranks opportunities by affinity and audience scale
-- The UI can show other opportunities besides the primary one
+- Merchant data (customers, products, orders) can be imported via CSV or explored using a shared seeded demo dataset
+- Opportunity discovery supports three data-source modes: `demo`, `private`, and `auto` (default)
+- The system ranks opportunities deterministically by co-purchase affinity × audience size
+- Qualification thresholds are enforced: 20+ customers on a base product and 65%+ co-purchase overlap with a second product
+- If a merchant's own data doesn't clear these thresholds, the app reports the actual numbers explicitly rather than silently substituting demo data
 
 ### AI layer
 
-- The app provides AI recommendation explanations for opportunities
-- Recommendation quality is grounded in the actual opportunity object
-- The AI layer is not allowed to invent counts or override deterministic metrics
+- An AI-generated recommendation is provided for the top-ranked opportunity
+- Recommendations for alternate opportunities are loaded on demand, not automatically, to control LLM cost
+- The AI layer only explains and recommends — it never recalculates guardrails, metrics, or financial figures; those are always deterministic code
 
 ### Experiment workflow
 
 - A proposed experiment is created from a selected opportunity
-- Guardrails validate whether the experiment should run
-- Audience groups are split across control and treatment cohorts
-- Running experiments can be analyzed for outcomes
-- Analysis results route to a results page
+- Guardrails validate whether the experiment should run (audience size, opportunity quality, maximum exposure)
+- Audience groups are split into control and treatment cohorts using a seeded Fisher-Yates shuffle
+- Running experiments can be analyzed for outcomes using a two-proportion z-test
+- Re-analysis is rate-limited: at least one new completed order in either group since the last analysis is required, preventing re-running statistics on unchanged data
+- Analysis produces a SCALE / STOP / INSUFFICIENT_DATA decision
+- A running experiment can be scaled (grows the audience within an exposure cap), ended (with a two-step confirmation), or left running to accumulate more data
+- Completed experiments appear in a History page with their final verdicts and stored measurement data
 
 ### Payment and simulation
 
-- Razorpay Test Mode is used for test payment simulation
-- Payment flows are verified server-side
-- Customer-level payment simulation is supported in the UI
+- Razorpay in test mode is used for simulating customer payments
+- Payment flows are verified server-side (client verification and webhook capture)
+- Each payment transaction gets its own step-by-step audit timeline (order created → client verified / webhook captured → final status)
+- This per-payment audit trail is separate from the general system activity log
 
 ### Auditability
 
-- Experiment flows and data actions are recorded in the app audit trail
-- Results and recommendation logic remain inspectable and deterministic
+- Experiment lifecycle events and data actions are recorded in the system activity log
+- Each payment has an independent audit timeline with granular step tracking
+- Results, metrics, and decision logic remain inspectable and deterministic
 
 ## Data source model
 
 The app supports three data-source modes:
 
-- `demo`: uses seeded/demo data
-- `private`: uses merchant uploaded or private data
-- `auto`: default fallback mode when no explicit override is set
+- **`demo`**: uses a shared seeded baseline dataset, always available for exploring the product with no setup
+- **`private`**: uses the merchant's own CSV-imported customers, products, and orders, completely isolated from other merchants
+- **`auto`** (default): shows the merchant's own data if they have any, falls back to demo otherwise
 
-The company logic intentionally keeps explicit user override buttons in onboarding, while the default page behavior falls back to `auto` instead of `demo`.
+If a merchant's private data doesn't meet the qualification thresholds, the app surfaces the actual numbers (base customer count, measured affinity) and explains why no opportunity qualified, rather than silently falling back to demo data.
 
 ## Guardrails and decisioning
 
-Before an experiment is run, the system validates that it is safe and meaningful. Some examples include:
+Before an experiment is run, the system validates that it is safe and meaningful:
 
-- audience size constraints
-- minimum opportunity quality
-- maximum exposure rules
-- experiment-specific checks and block reasons
+- Audience size constraints (minimum eligible customers)
+- Minimum opportunity quality (affinity threshold)
+- Maximum exposure rules (cap on the fraction of eligible customers in the experiment)
+- Experiment-specific checks and block reasons
+
+After analysis, the decision is based on statistical evidence from a two-proportion z-test, not just revenue comparison. The possible outcomes are:
+
+- **SCALE**: statistically significant positive result
+- **STOP**: evidence of no benefit or negative impact
+- **INSUFFICIENT_DATA**: not enough evidence to decide yet
 
 ## Engineering principle
 
@@ -95,12 +109,14 @@ The product is intentionally scoped to a merchant-facing revenue optimization lo
 
 This repository represents the current working build of Revora, including:
 
-- frontend experience and navigation
-- backend API and services
-- experiment lifecycle support
-- AI recommendation support
-- payment test-mode flow
-- analytics and measurement logic
+- Frontend experience and navigation
+- Backend API and services
+- Experiment lifecycle support (propose, start, analyze, scale, end)
+- AI recommendation with cost-controlled on-demand loading
+- Payment test-mode flow with per-payment audit timelines
+- Deterministic analytics and measurement (two-proportion z-test)
+- Experiment history page
+- System activity log and payment audit views
 
 ## Local development
 

@@ -135,6 +135,8 @@ export interface Experiment {
   strategy: string
   baseProductId?: string | null
   targetProductId: string | null
+  baseProductName?: string | null
+  targetProductName?: string | null
   status: string
   controlCustomerIds: string[]
   treatmentCustomerIds: string[]
@@ -145,6 +147,7 @@ export interface Experiment {
   scaleEvents?: Array<{ scaledAt: string | null; addedControlCount: number; addedTreatmentCount: number; assignmentSeed: number; audienceSizeAfter: number }>
   createdAt: string | null
   updatedAt: string | null
+  lastAnalyzedAt?: string | null
 }
 
 export interface AnalyzeExperimentResponseData {
